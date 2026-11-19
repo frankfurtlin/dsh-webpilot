@@ -1,0 +1,31 @@
+# Bundle patch for dsh-webpilot: insert the dual-face plugin row into the profile
+# roster. The host half (exports ".") owns one shared Chrome, one tab per DSH
+# session, the webpilot_* tools and the panel routes; the `dsh.client` block in
+# package.json loads the browser half in the Web GUI as an on-demand
+# right-Sidebar tab (the live picture plus the cyber-spider effect overlay).
+#
+# Override any field of the plugin config from your own patch layer, e.g.
+#   - id: webpilot
+#     config:
+#       mode: headless
+#       idleShutdownMinutes: 30
+#       effects: true
+- insert:
+    - id: webpilot
+      name: 'dsh-webpilot'
+      config:
+        # auto = a real Xvfb display when one is available, so the page sees a
+        # consistent 1440x900 screen instead of headless Chrome's 800x600.
+        mode: auto
+        # Match the account's locale and zone: an `en-US` browser at UTC from a
+        # Guangzhou IP is the mismatch risk control scores hardest.
+        languages: 'zh-CN,zh,en'
+        timezone: 'Asia/Shanghai'
+        # Xvfb has no GPU: without the software fallback allowed, headed Chrome
+        # reports no WebGL at all (`canvas.getContext('webgl') === null`), which
+        # is a worse tell than a SwiftShader renderer string.
+        extraArgs:
+          - --enable-unsafe-swiftshader
+          - --use-angle=swiftshader
+        lazyTools: false
+        effects: true

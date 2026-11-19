@@ -1,0 +1,127 @@
+# ─────────────────────────────────────────────────────────────
+# workspace 通用忽略规则
+# 由 bin/whost init 追加到没有 .gitignore 的仓；已有 .gitignore 的仓
+# 只会追加一次（带标记）。需要放行某个文件就写 !path/to/file。
+# ─────────────────────────────────────────────────────────────
+
+# 依赖 / 虚拟环境
+node_modules/
+.venv/
+venv/
+env/
+__pycache__/
+*.py[cod]
+.pnpm-store/
+
+# 构建产物
+dist/
+build/
+out/
+.next/
+.nuxt/
+.cache/
+coverage/
+*.tsbuildinfo
+
+# 密钥与本地配置（务必只提交 .example）
+.env
+.env.*
+!.env.example
+!.env.sample
+*.pem
+*.key
+id_rsa*
+id_ed25519*
+.credentials*
+*.ai-secret
+
+# 数据库与运行时数据
+*.sqlite
+*.sqlite3
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+
+# 浏览器 / 测试残留
+chrome-profile/
+*-profile/
+.playwright/
+verification/shots/
+verification/tmp/
+e2e/shots/
+e2e/traces/
+shots/
+
+# 日志与系统垃圾
+*.log
+logs/
+.DS_Store
+Thumbs.db
+*.swp
+.tmp/
+
+
+# ── 来自 workspace-hosting/gitignore/base.gitignore ──
+# ─────────────────────────────────────────────────────────────
+# workspace 通用忽略规则
+# 由 bin/whost init 追加到没有 .gitignore 的仓；已有 .gitignore 的仓
+# 只会追加一次（带标记）。需要放行某个文件就写 !path/to/file。
+# ─────────────────────────────────────────────────────────────
+
+# 依赖 / 虚拟环境
+node_modules/
+.venv/
+venv/
+env/
+__pycache__/
+*.py[cod]
+.pnpm-store/
+
+# 构建产物
+dist/
+build/
+out/
+.next/
+.nuxt/
+.cache/
+coverage/
+*.tsbuildinfo
+
+# 密钥与本地配置（务必只提交 .example）
+.env
+.env.*
+!.env.example
+!.env.sample
+*.pem
+*.key
+id_rsa*
+id_ed25519*
+.credentials*
+*.ai-secret
+
+# 数据库与运行时数据
+*.sqlite
+*.sqlite3
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+
+# 浏览器 / 测试残留
+chrome-profile/
+*-profile/
+.playwright/
+verification/shots/
+verification/tmp/
+e2e/shots/
+e2e/traces/
+shots/
+
+# 日志与系统垃圾
+*.log
+logs/
+.DS_Store
+Thumbs.db
+*.swp
+.tmp/

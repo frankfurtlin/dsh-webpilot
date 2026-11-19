@@ -1,0 +1,57 @@
+{
+  "ok": true,
+  "base": "http://127.0.0.1:3080",
+  "checks": [
+    {
+      "label": "launch token found in the service journal",
+      "ok": true,
+      "detail": "token length 43"
+    },
+    {
+      "label": "GUI renders after the restart",
+      "ok": true,
+      "detail": "textLength=338 title=DeepSeek Harness"
+    },
+    {
+      "label": "right-Sidebar shell is mounted",
+      "ok": true,
+      "detail": true
+    },
+    {
+      "label": "conversation composer exists",
+      "ok": true,
+      "detail": true
+    },
+    {
+      "label": "plugin health answers 200 inside the GUI session",
+      "ok": true,
+      "detail": "{\"status\":200,\"ok\":true,\"value\":{\"ok\":true,\"version\":\"1.0.0\",\"running\":false,\"sessions\":0,\"profileDir\":\"/root/.dsh/webpilot/profile\"}}"
+    },
+    {
+      "label": "plugin state route is reachable from the GUI origin",
+      "ok": true,
+      "detail": "{\"status\":200}"
+    },
+    {
+      "label": "shell exposes the right-sidebar mount points",
+      "ok": true,
+      "detail": {
+        "mentionsWebpilot": false,
+        "hasRightSidebar": true
+      }
+    },
+    {
+      "label": "screenshot captured",
+      "ok": true,
+      "detail": "/root/workspace/plugins/dsh-webpilot/scripts/postinstall-gui.png"
+    },
+    {
+      "label": "no uncaught page exception during boot",
+      "ok": true,
+      "detail": []
+    }
+  ],
+  "exceptions": [],
+  "shot": "/root/workspace/plugins/dsh-webpilot/scripts/postinstall-gui.png",
+  "finishedAt": "2026-11-18T06:07:59.946Z"
+}

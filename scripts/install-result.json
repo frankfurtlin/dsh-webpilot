@@ -1,0 +1,8 @@
+{
+  "ok": true,
+  "checkedAt": "2026-11-18T06:00:49.285Z",
+  "base": "http://127.0.0.1:3080",
+  "health": "200",
+  "serviceState": "active",
+  "pluginLogLines": []
+}

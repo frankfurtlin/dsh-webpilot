@@ -1,0 +1,849 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>WebPilot FX Harness</title>
+<!-- The real plugin module loader is not running here; stash the factory so the
+     shared client.js can be loaded unchanged for its fx engine + stylesheet. -->
+<script>
+  window.__ModuleLoader__ = {
+    load: function (definition) { window.__webpilotDefinition = definition },
+  }
+</script>
+<style>
+  html, body { margin: 0; height: 100%; }
+  body {
+    display: grid;
+    place-items: center;
+    background:
+      radial-gradient(900px 600px at 20% 0%, rgba(18, 44, 70, .55) 0%, transparent 60%),
+      radial-gradient(700px 500px at 100% 100%, rgba(40, 20, 70, .5) 0%, transparent 55%),
+      #020407;
+    color: #7b8da3;
+    font-family: ui-monospace, "SF Mono", "JetBrains Mono", Consolas, monospace;
+    overflow: hidden;
+  }
+  body::before {
+    content: "";
+    position: fixed; inset: 0; pointer-events: none;
+    background-image:
+      linear-gradient(rgba(95, 227, 255, .045) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(95, 227, 255, .045) 1px, transparent 1px);
+    background-size: 28px 28px; opacity: .5;
+  }
+  /* The panel stands in for the real DSH right-sidebar body: same width band. */
+  #panel {
+    width: 600px;
+    height: min(880px, 92vh);
+    border: 1px solid rgba(120, 200, 255, .16);
+    border-radius: 6px;
+    box-shadow: 0 30px 80px -30px #000, 0 0 60px rgba(95, 227, 255, .06);
+    overflow: hidden;
+  }
+  #controls {
+    position: fixed; left: 18px; top: 18px; z-index: 90;
+    display: flex; flex-direction: column; gap: 9px; width: 276px;
+  }
+  #controls .box {
+    border: 1px solid rgba(120, 200, 255, .14);
+    background: rgba(6, 11, 18, .82);
+    padding: 10px 12px;
+    border-radius: 4px;
+  }
+  #controls h1 {
+    margin: 0 0 8px;
+    font-size: 10px; font-weight: 600; letter-spacing: .18em;
+    color: #bdefff; text-transform: uppercase;
+  }
+  #controls p {
+    margin: 0 0 8px;
+    font-size: 9px; line-height: 1.6; color: #6a839a;
+  }
+  #buttons { display: flex; flex-wrap: wrap; gap: 5px; }
+  #buttons button {
+    border: 1px solid rgba(95, 227, 255, .22);
+    background: rgba(11, 19, 31, .8);
+    color: #9fc4da; border-radius: 3px; padding: 5px 8px;
+    font: 9px/1 ui-monospace, monospace; letter-spacing: .08em;
+    text-transform: uppercase; cursor: pointer;
+  }
+  #buttons button:hover { border-color: rgba(95, 227, 255, .55); color: #e2f9ff; background: rgba(95, 227, 255, .12); }
+  #buttons button.primary { border-color: rgba(108, 255, 192, .4); color: #b8ffd9; }
+  #buttons button.nav { border-color: rgba(255, 198, 92, .4); color: #ffe0a3; }
+  #readout {
+    font-size: 8.5px; line-height: 1.7; color: #56708a;
+    border-top: 1px solid rgba(120, 200, 255, .1);
+    margin-top: 9px; padding-top: 7px;
+  }
+  #readout b { color: #9fc4da; font-weight: 500; }
+  #readout .bad { color: #ff9fb1; }
+  #fatal {
+    position: fixed; left: 20px; bottom: 18px; right: 20px; z-index: 99;
+    display: none; padding: 10px 12px;
+    border: 1px solid rgba(255, 92, 122, .5); background: rgba(30, 6, 12, .92);
+    color: #ffb3c1; font: 10px/1.6 ui-monospace, monospace;
+  }
+</style>
+</head>
+<body>
+
+<aside id="controls">
+  <div class="box">
+    <h1>WebPilot FX Harness</h1>
+    <p>
+      右侧是真实面板外壳 + 同一份 <code>lib/client.js</code> FX 渲染器；背景是程序化生成的假网页截图。
+      下面按钮发送合成的 fx 事件（与 host 广播的 <code>{type:'fx',kind}</code> 同构）。
+    </p>
+    <div id="buttons">
+      <button data-fx="compose" class="primary">replay all</button>
+      <button data-fx="click">click</button>
+      <button data-fx="read">read</button>
+      <button data-fx="type">type</button>
+      <button data-fx="scroll">scroll</button>
+      <button data-fx="nav">nav</button>
+      <button data-fx="key">key</button>
+      <button data-fx="standby">standby ⇄ live</button>
+    </div>
+    <button id="fake-expand" data-sidebar-right-expand type="button" style="display:none">fake expand</button>
+    <button id="fake-toggle" data-sidebar-right-toggle type="button" style="display:none">fake toggle</button>
+    <div id="readout">
+      engine <b id="r-engine">—</b> · events <b id="r-events">0</b>
+      <br>canvas <b id="r-pixels">—</b> · reduced <b id="r-reduced">—</b>
+      <br>viewport <b id="r-view">—</b> · stage <b id="r-stage">—</b>
+      <br>ladder <b id="r-ladder">running…</b>
+    </div>
+  </div>
+</aside>
+
+<div id="panel" data-dsh-webpilot data-tone="live">
+  <i class="wp-scanline" aria-hidden="true"></i>
+
+  <header class="wp-head">
+    <div class="wp-mark">
+      <span class="wp-mark-badge">WP</span>
+      <span class="wp-mark-name"><b>WEBPILOT</b><span>CDP // LIVE VIEW</span></span>
+    </div>
+    <div class="wp-status">
+      <span class="wp-pill"><i class="wp-dot"></i><b id="state-label">LIVE</b></span>
+      <div class="wp-metrics">
+        <span class="wp-metric">FPS <b id="metric-fps">24</b></span>
+        <span class="wp-metric wp-metric-view">VIEW <b id="metric-view">1440×900</b></span>
+      </div>
+    </div>
+  </header>
+
+  <div class="wp-urlrow">
+    <div class="wp-location" title="https://en.wikipedia.org/wiki/Attention_(transformer)">
+      <span class="wp-prompt">https://</span>
+      <span class="wp-url-site">en.wikipedia.org</span>
+      <span class="wp-url-path">/wiki/Attention_(transformer)</span>
+      <i class="wp-caret" aria-hidden="true"></i>
+    </div>
+    <div class="wp-navbtns">
+      <button type="button" class="wp-navbtn" title="Back">←</button>
+      <button type="button" class="wp-navbtn" title="Forward">→</button>
+      <button type="button" class="wp-navbtn" title="Reload">⟳</button>
+      <button type="button" class="wp-navbtn" title="Repaint">❐</button>
+    </div>
+  </div>
+
+  <div class="wp-tools">
+    <button type="button" class="wp-chip">⇥ Tab</button>
+    <button type="button" class="wp-chip">⇤ ⇧Tab</button>
+    <button type="button" class="wp-chip">⏎ Enter</button>
+    <span class="wp-tools-spacer"></span>
+    <button type="button" class="wp-chip danger">Close tab</button>
+  </div>
+
+  <div class="wp-stage" id="stage">
+    <canvas class="wp-frame" id="frame" width="1440" height="900" tabindex="0"></canvas>
+    <canvas class="wp-fx" id="fx" aria-hidden="true"></canvas>
+    <i class="wp-corner tl" aria-hidden="true"></i>
+    <i class="wp-corner tr" aria-hidden="true"></i>
+    <i class="wp-corner bl" aria-hidden="true"></i>
+    <i class="wp-corner br" aria-hidden="true"></i>
+    <div class="wp-hud" id="hud" aria-hidden="true"></div>
+    <div class="wp-standby" id="standby" style="display:none">
+      <div class="wp-standby-mark">WEBPILOT <em>STANDBY</em></div>
+      <i class="wp-standby-line" aria-hidden="true"></i>
+      <div class="wp-standby-sub">No browser is attached to this session yet. Opening one starts a headless Chromium in the AI viewport, and every action it takes is drawn here.</div>
+      <button type="button" class="wp-open">Open browser</button>
+    </div>
+    <div class="wp-hud-foot" aria-hidden="true">
+      <div class="wp-hud-foot-line" id="mode-label">SCREENCAST</div>
+      <div class="wp-hud-foot-line">SID HARNESS</div>
+    </div>
+    <div class="wp-hint" id="hint">点画面聚焦 · 键盘/输入法直接回灌 · AI 看到同一页面</div>
+  </div>
+</div>
+
+<pre id="fatal"></pre>
+
+<script src="../lib/client.js"></script>
+<script>
+(function () {
+  'use strict'
+  var fatal = document.getElementById('fatal')
+  function die(message) {
+    fatal.style.display = 'block'
+    fatal.textContent = 'HARNESS ERROR // ' + message
+    window.__harnessError = message
+    console.error('[harness]', message)
+  }
+  window.addEventListener('error', function (event) {
+    die(event.message + ' @' + (event.filename || '?') + ':' + (event.lineno || 0))
+  })
+  window.addEventListener('unhandledrejection', function (event) {
+    die('unhandled rejection: ' + (event.reason && event.reason.message ? event.reason.message : event.reason))
+  })
+
+  var FX = window.WebPilotFx
+  if (!FX || typeof FX.createFxEngine !== 'function') {
+    die('window.WebPilotFx missing — lib/client.js did not load')
+    return
+  }
+
+  // ---- same stylesheet the plugin injects into the DSH document ----
+  var style = document.createElement('style')
+  style.dataset.plugin = 'dsh-webpilot-harness'
+  style.textContent = FX.css
+  document.head.append(style)
+
+  var stage = document.getElementById('stage')
+  var frame = document.getElementById('frame')
+  var fxCanvas = document.getElementById('fx')
+  var hud = document.getElementById('hud')
+  var VIEWPORT = { width: 1440, height: 900 }
+
+  /* ---------------------------------------------------------------- fake page
+   * A procedural screenshot: the harness must look like a real page captured
+   * from a browser, not like a test card. Nothing here ships with the plugin.
+   */
+  function drawFakePage() {
+    var g = frame.getContext('2d')
+    var W = frame.width
+    var H = frame.height
+    var SANS = 'system-ui,-apple-system,"Segoe UI","Noto Sans SC",sans-serif'
+    var MONO = 'ui-monospace,Menlo,Consolas,monospace'
+    g.textBaseline = 'alphabetic'
+
+    g.fillStyle = '#f7f8fa'
+    g.fillRect(0, 0, W, H)
+
+    // top utility bar
+    g.fillStyle = '#0b1220'
+    g.fillRect(0, 0, W, 56)
+    g.fillStyle = '#5fe3ff'
+    g.fillRect(24, 18, 20, 20)
+    g.fillStyle = '#0b1220'
+    g.font = '700 12px ' + MONO
+    g.fillText('W', 29, 33)
+    g.fillStyle = '#dbe8f5'
+    g.font = '600 15px ' + SANS
+    g.fillText('WIKI // CRAWL', 54, 33)
+    g.fillStyle = '#7f95ab'
+    g.font = '12.5px ' + SANS
+    ;['Article', 'Talk', 'History', 'Tools'].forEach(function (label, i) {
+      g.fillText(label, 320 + i * 84, 33)
+    })
+    // search field
+    g.fillStyle = '#16233a'
+    g.fillRect(1010, 15, 300, 26)
+    g.strokeStyle = '#2d4568'
+    g.strokeRect(1010.5, 15.5, 299, 25)
+    g.fillStyle = '#6f8aa6'
+    g.font = '12px ' + SANS
+    g.fillText('Search WIKI // CRAWL', 1024, 33)
+    g.fillStyle = '#22314a'
+    g.fillRect(1332, 15, 2, 26)
+
+    // left contents rail
+    g.fillStyle = '#eef1f5'
+    g.fillRect(0, 56, 258, H - 56)
+    g.fillStyle = '#5b6a7c'
+    g.font = '600 11px ' + MONO
+    g.fillText('CONTENTS', 24, 96)
+    g.font = '11.5px ' + SANS
+    var toc = ['1  Background', '2  Architecture', '3  Training', '4  Results', '5  Variants', '6  References']
+    toc.forEach(function (line, i) {
+      g.fillStyle = '#33465c'
+      g.fillText(line, 24, 126 + i * 26)
+      if (i === 1) {
+        g.fillStyle = '#5fe3ff'
+        g.fillRect(16, 114 + i * 26, 1.5, 16)
+      }
+    })
+    g.fillStyle = '#c3cdd8'
+    g.fillRect(24, 296, 190, 1)
+    g.fillStyle = '#5b6a7c'
+    g.font = '600 11px ' + MONO
+    g.fillText('PAGE TOOLS', 24, 322)
+    g.font = '11.5px ' + SANS
+    ;['Cite this page', 'Print / export', 'Download PDF', 'Permanent link'].forEach(function (line, i) {
+      g.fillStyle = '#2f5f9e'
+      g.fillText(line, 24, 348 + i * 24)
+    })
+
+    // article column
+    var x0 = 300
+    g.fillStyle = '#1b2430'
+    g.font = '700 36px ' + SANS
+    g.fillText('Attention (transformer)', x0, 152)
+    g.fillStyle = '#8a99a8'
+    g.fillRect(x0, 174, 660, 1)
+    g.fillStyle = '#6d7f90'
+    g.font = '11.5px ' + MONO
+    g.fillText('FROM WIKI // CRAWL — LAST EDITED 4 MINUTES AGO', x0, 196)
+    g.fillStyle = '#2f5f9e'
+    g.font = '12.5px ' + SANS
+    g.fillText('read', x0 + 640, 196)
+    g.fillStyle = '#6d7f90'
+    g.fillText('edit', x0 + 682, 196)
+
+    // lead paragraph (drawn as text lines)
+    g.fillStyle = '#2b3949'
+    g.font = '15px ' + SANS
+    var lead = [
+      'Attention is a mechanism that lets a model weigh every token in a context',
+      'against every other token. The transformer architecture replaces recurrence',
+      'with stacked self-attention blocks, enabling parallel training over long',
+      'sequences and direct modelling of long-range dependencies.',
+    ]
+    lead.forEach(function (line, i) {
+      g.fillText(line, x0, 236 + i * 26)
+    })
+
+    // an inline link
+    g.fillStyle = '#2f5f9e'
+    g.fillText('scaled dot-product attention', x0 + 236, 236)
+    g.fillStyle = '#c9d3dd'
+    g.fillRect(x0, 236 + 17, 234, 1)
+
+    // section heading
+    g.fillStyle = '#1b2430'
+    g.font = '700 24px ' + SANS
+    g.fillText('Architecture', x0, 506)
+    g.fillStyle = '#8a99a8'
+    g.fillRect(x0, 522, 660, 1)
+
+    // paragraph as grey bars
+    var y = 552
+    for (var row = 0; row < 5; row += 1) {
+      g.fillStyle = row % 2 === 0 ? '#d3dbe4' : '#dbe2ea'
+      g.fillRect(x0, y + row * 18, row === 4 ? 320 : 668, 7)
+    }
+
+    // code block
+    g.fillStyle = '#101a26'
+    g.fillRect(x0, 664, 668, 132)
+    g.fillStyle = '#2b3d52'
+    g.fillRect(x0, 664, 668, 1)
+    g.font = '12.5px ' + MONO
+    var code = [
+      'class MultiHeadAttention(nn.Module):',
+      '    def forward(self, q, k, v, mask=None):',
+      '        scores = q @ k.transpose(-2, -1) / sqrt(d)',
+      '        weights = softmax(scores + mask)',
+      '        return weights @ v',
+    ]
+    code.forEach(function (line, i) {
+      g.fillStyle = i === 0 ? '#b48cff' : i === 1 ? '#6cffc0' : '#8fb6cd'
+      g.fillText(line, x0 + 20, 696 + i * 24)
+    })
+
+    // infobox on the right
+    var boxX = 1040
+    g.fillStyle = '#eef1f5'
+    g.fillRect(boxX, 190, 340, 300)
+    g.strokeStyle = '#d3dbe4'
+    g.strokeRect(boxX + 0.5, 190.5, 339, 299)
+    g.fillStyle = '#1b2430'
+    g.font = '600 13px ' + SANS
+    g.fillText('Attention (transformer)', boxX + 18, 218)
+    g.fillStyle = '#8a99a8'
+    g.fillRect(boxX, 230, 340, 1)
+    g.font = '11.5px ' + SANS
+    var info = [
+      ['Type', 'Neural network'],
+      ['Introduced', '2017'],
+      ['Paper', '"Attention Is All You Need"'],
+      ['Authors', 'Vaswani et al.'],
+      ['Replaces', 'Recurrent layers'],
+      ['Predecessor', 'Seq2seq + RNN'],
+    ]
+    info.forEach(function (pair, i) {
+      g.fillStyle = '#6d7f90'
+      g.fillText(pair[0], boxX + 18, 258 + i * 30)
+      g.fillStyle = '#2b3949'
+      g.fillText(pair[1], boxX + 122, 258 + i * 30)
+      g.fillStyle = '#e3e8ee'
+      g.fillRect(boxX + 18, 266 + i * 30, 300, 1)
+    })
+    // infobox thumbnail
+    g.fillStyle = '#16233a'
+    g.fillRect(boxX, 504, 340, 122)
+    g.strokeStyle = '#2d4568'
+    g.strokeRect(boxX + 0.5, 504.5, 339, 121)
+    g.strokeStyle = '#5fe3ff'
+    g.lineWidth = 1.4
+    for (var i = 0; i < 5; i += 1) {
+      for (var j = 0; j < 3; j += 1) {
+        var cx = boxX + 46 + i * 62
+        var cy = 536 + j * 32
+        g.beginPath()
+        g.arc(cx, cy, 8, 0, Math.PI * 2)
+        g.stroke()
+        if (i < 4) {
+          g.beginPath()
+          g.moveTo(cx + 8, cy)
+          g.lineTo(cx + 54, cy)
+          g.stroke()
+        }
+      }
+    }
+    g.strokeStyle = 'rgba(180,140,255,.7)'
+    g.beginPath()
+    g.moveTo(boxX + 30, 552)
+    g.lineTo(boxX + 180, 570)
+    g.lineTo(boxX + 310, 540)
+    g.stroke()
+
+    // footer strip
+    g.fillStyle = '#e6ebf1'
+    g.fillRect(0, H - 54, W, 54)
+    g.fillStyle = '#8a99a8'
+    g.font = '11px ' + MONO
+    g.fillText('THIS PAGE WAS LAST EDITED ON 18 NOV 2026, AT 11:58 (UTC).', 24, H - 22)
+    g.fillStyle = '#b3bfca'
+    g.fillRect(0, H - 54, W, 1)
+  }
+
+  /* ------------------------------------------------------------------- HUD */
+  var hudSeq = 0
+  function pushHud(kind, tag, text) {
+    hudSeq += 1
+    var date = new Date()
+    var time = [date.getHours(), date.getMinutes(), date.getSeconds()]
+      .map(function (v) { return String(v).padStart(2, '0') })
+      .join(':')
+    var line = document.createElement('div')
+    line.className = 'wp-hud-line'
+    line.dataset.kind = kind
+    var t = document.createElement('span'); t.className = 'wp-hud-time'; t.textContent = time
+    var g = document.createElement('span'); g.className = 'wp-hud-tag'; g.textContent = tag
+    var m = document.createElement('span'); m.className = 'wp-hud-msg'; m.textContent = text
+    line.append(t, g, m)
+    hud.append(line)
+    while (hud.children.length > 6) hud.firstElementChild.remove()
+  }
+
+  /* ----------------------------------------------------------------- engine */
+  var engine = FX.createFxEngine({ canvas: fxCanvas, stage: stage, viewport: VIEWPORT })
+  if (engine === null) {
+    die('createFxEngine returned null')
+    return
+  }
+
+  // Article-region boxes, in page CSS px, matching what the fake page draws.
+  var BOXES = {
+    title: { x: 300, y: 118, w: 560, h: 44, kind: 'element' },
+    lead: { x: 300, y: 210, w: 700, h: 108, kind: 'text' },
+    info: { x: 1040, y: 190, w: 340, h: 300, kind: 'element' },
+    code: { x: 300, y: 664, w: 668, h: 132, kind: 'element' },
+    search: { x: 1010, y: 15, w: 300, h: 26, kind: 'element' },
+    link: { x: 520, y: 218, w: 250, h: 24, kind: 'text' },
+  }
+
+  var events = 0
+  function count() {
+    events += 1
+    document.getElementById('r-events').textContent = String(events)
+  }
+
+  function fire(kind) {
+    switch (kind) {
+      case 'click':
+        engine.push({ kind: 'click', x: 540, y: 232, box: BOXES.link, label: 'scaled dot-product attention', tool: 'webpilot_click' })
+        count()
+        pushHud('click', 'CLICK', '→ (540, 232) · scaled dot-product attention')
+        break
+      case 'read':
+        engine.push({ kind: 'read', boxes: [BOXES.title, BOXES.lead, BOXES.info], title: 'Attention (transformer)', url: 'https://en.wikipedia.org/wiki/Attention_(transformer)', tool: 'webpilot_snapshot' })
+        count()
+        pushHud('read', 'READ', 'Attention (transformer) · 3 blocks')
+        break
+      case 'type':
+        engine.push({ kind: 'type', x: 1160, y: 28, box: BOXES.search, text: 'attention transformer', tool: 'webpilot_type' })
+        count()
+        pushHud('type', 'TYPE', '“attention transformer”')
+        break
+      case 'scroll':
+        engine.push({ kind: 'scroll', direction: 'down', dy: 640, tool: 'webpilot_scroll' })
+        count()
+        pushHud('scroll', 'SCROLL', 'down · dy 640')
+        break
+      case 'nav':
+        engine.push({ kind: 'nav', url: 'https://en.wikipedia.org/wiki/Transformer_(deep_learning_architecture)', phase: 'start', tool: 'webpilot_navigate' })
+        count()
+        pushHud('nav', 'NAV', 'start · /wiki/Transformer_(deep_learning_architecture)')
+        break
+      case 'key':
+        engine.push({ kind: 'key', key: 'Enter', tool: 'webpilot_press' })
+        count()
+        pushHud('key', 'KEY', '[Enter]')
+        break
+      default:
+        break
+    }
+    engine.renderNow()
+    updateReadout()
+  }
+
+  /* A staggered composition: each `skip()` advances the engine clock so the
+     screenshot catches every effect at a different, photogenic phase. */
+  function compose() {
+    engine.clear()
+    events = 0
+    hud.textContent = ''
+
+    pushHud('link', 'LINK', 'screencast channel online')
+    engine.push({ kind: 'read', boxes: [BOXES.title, BOXES.lead, BOXES.info], title: 'Attention (transformer)', url: 'https://en.wikipedia.org/wiki/Attention_(transformer)', tool: 'webpilot_snapshot' })
+    engine.skip(240)
+    pushHud('read', 'READ', 'Attention (transformer) · 3 blocks')
+
+    engine.push({ kind: 'click', x: 540, y: 232, box: BOXES.link, label: 'scaled dot-product attention', tool: 'webpilot_click' })
+    engine.skip(300)
+    pushHud('click', 'CLICK', '→ (540, 232) · scaled dot-product attention')
+
+    engine.push({ kind: 'type', x: 1160, y: 28, box: BOXES.search, text: 'attention transformer', tool: 'webpilot_type' })
+    engine.skip(190)
+    pushHud('type', 'TYPE', '“attention transformer”')
+
+    engine.push({ kind: 'scroll', direction: 'down', dy: 640, tool: 'webpilot_scroll' })
+    engine.push({ kind: 'key', key: 'Enter', tool: 'webpilot_press' })
+    engine.skip(150)
+    pushHud('scroll', 'SCROLL', 'down · dy 640')
+    pushHud('key', 'KEY', '[Enter]')
+
+    engine.push({ kind: 'nav', url: 'https://en.wikipedia.org/wiki/Transformer_(deep_learning_architecture)', phase: 'start', tool: 'webpilot_navigate' })
+    engine.skip(90)
+    pushHud('nav', 'NAV', 'start · /wiki/Transformer_(deep_learning_architecture)')
+
+    events = 6
+    document.getElementById('r-events').textContent = '6'
+    engine.renderNow()
+    updateReadout()
+  }
+
+  /* ------------------------------------------------------------- readout/UI */
+  function updateReadout() {
+    var stats = engine.stats()
+    document.getElementById('r-engine').textContent = FX.version + (
+      stats.items + stats.spider.alpha > 0 ? ' · active' : ' · idle'
+    )
+    document.getElementById('r-reduced').textContent = String(stats.reduced)
+    document.getElementById('r-view').textContent = stats.viewport.width + '×' + stats.viewport.height
+    document.getElementById('r-stage').textContent = stats.layout.cw + '×' + stats.layout.ch + ' @' + stats.layout.dpr + 'x'
+    try {
+      var g = fxCanvas.getContext('2d')
+      var data = g.getImageData(0, 0, fxCanvas.width, fxCanvas.height).data
+      var painted = 0
+      var colored = 0
+      for (var i = 0; i < data.length; i += 4) {
+        if (data[i + 3] > 8) {
+          painted += 1
+          if (data[i] > 40 || data[i + 1] > 40 || data[i + 2] > 40) colored += 1
+        }
+      }
+      document.getElementById('r-pixels').textContent = painted + ' px / ' + colored + ' lit'
+    } catch (error) {
+      document.getElementById('r-pixels').textContent = 'stats failed: ' + error.message
+    }
+    document.getElementById('r-pixels').className = ''
+  }
+  // The panel shows "fps" as a static 24: this harness has no screencast.
+
+  /* Standby ⇄ live: the empty-panel design is part of the deliverable, and a
+     still of it is cheaper to capture than to describe. The markup/classes are
+     the very ones the plugin renders when no browser is attached. */
+  var standingBy = false
+  function setStandbyMode(next) {
+    standingBy = next === undefined ? !standingBy : next === true
+    var panel = document.getElementById('panel')
+    panel.dataset.tone = standingBy ? 'standby' : 'live'
+    document.getElementById('state-label').textContent = standingBy ? 'STANDBY' : 'LIVE'
+    document.getElementById('metric-fps').textContent = standingBy ? '--' : '24'
+    document.getElementById('standby').style.display = standingBy ? 'flex' : 'none'
+    ;['frame', 'fx', 'hud', 'hint'].forEach(function (id) {
+      var node = document.getElementById(id)
+      if (node) node.style.display = standingBy ? 'none' : ''
+    })
+    if (standingBy) {
+      engine.clear()
+      engine.renderNow()
+    } else {
+      compose()
+    }
+    updateReadout()
+  }
+
+  document.getElementById('buttons').addEventListener('click', function (event) {
+    var button = event.target.closest('button[data-fx]')
+    if (button === null) return
+    var kind = button.dataset.fx
+    if (kind === 'compose') {
+      compose()
+      return
+    }
+    if (kind === 'standby') {
+      setStandbyMode()
+      return
+    }
+    fire(kind)
+  })
+
+  /* ------------------------------------------------------------ boot + loop */
+  drawFakePage()
+  engine.setViewport(VIEWPORT.width, VIEWPORT.height)
+  compose()
+  updateReadout()
+  // Keep the readout live: a screenshot must show the fx canvas' current paint
+  // count, not the count at boot.
+  window.setInterval(updateReadout, 500)
+
+  var autoTimer = 0
+  function autoplay() {
+    autoTimer = window.setInterval(function () {
+      compose()
+    }, 6000)
+  }
+  autoplay()
+
+
+  /* --------------------------------------- fake Sidebar: reveal-ladder check */
+  var ladder = (function () {
+    function sleep(ms) {
+      return new Promise(function (resolve) {
+        window.setTimeout(resolve, ms)
+      })
+    }
+
+    function reactStub() {
+      return {
+        createElement: function () {
+          return null
+        },
+        Fragment: 'fragment',
+        useCallback: function (fn) {
+          return fn
+        },
+        useEffect: function () {},
+        useRef: function (value) {
+          return { current: value }
+        },
+        useState: function (value) {
+          return [typeof value === 'function' ? value() : value, function () {}]
+        },
+      }
+    }
+
+    /**
+     * The real `sessions.list` projection has ids/byId/phase and **no**
+     * `current` field (that bug hid the reveal watcher for a whole e2e run), so
+     * the fixture imitates it exactly: the on-screen session can only come from
+     * the Sidebar's `mounted` store below.
+     */
+    function fakeSessions(id) {
+      return {
+        list: {
+          getSnapshot: function () {
+            return { ids: [id], byId: {}, phase: 'ready' }
+          },
+          subscribe: function () {
+            return function () {}
+          },
+        },
+      }
+    }
+
+    /** The Sidebar's `mounted` snapshot: the authority on the on-screen session. */
+    function mountedStore(id) {
+      return {
+        getSnapshot: function () {
+          return id
+        },
+        subscribe: function () {
+          return function () {}
+        },
+      }
+    }
+
+    function fakeFetch() {
+      window.__fakeFetchCount = (window.__fakeFetchCount || 0) + 1
+      return Promise.resolve({
+        ok: true,
+        json: function () {
+          return Promise.resolve({ sessions: [{ id: 'sess-1' }], pending: [] })
+        },
+      })
+    }
+
+    return (async function () {
+      var out = { plugin: false, muted: null, healed: null, error: '' }
+      try {
+        var def = window.__webpilotDefinition
+        if (!def || typeof def.factory !== 'function') throw new Error('no plugin definition loaded')
+        var plugin = def.factory(function (name) {
+          if (name === 'react') return reactStub()
+          throw new Error('unexpected require: ' + name)
+        })
+        out.plugin = !!(plugin && plugin.__test && typeof plugin.__test.watchSessions === 'function')
+        if (!out.plugin) throw new Error('missing __test.watchSessions export')
+
+        var realFetch = window.fetch
+        window.fetch = fakeFetch
+
+        // A) The user collapses the column during the ladder's first 100 ms:
+        //    every later step must stand down instead of grabbing it back.
+        var mutedState = { openTabIn: 0, openTab: 0 }
+        var mutedSidebar = {
+          mounted: mountedStore('sess-1'),
+          openTabIn: function () {
+            mutedState.openTabIn += 1
+          },
+          openTab: function () {
+            mutedState.openTab += 1
+          },
+          tabsIn: function () {
+            return []
+          },
+          isExpanded: function () {
+            return false
+          },
+        }
+        var disposeA = plugin.__test.watchSessions({
+          get: function (name) {
+            if (name === 'sessions') return fakeSessions('sess-1')
+            if (name === 'sidebarRight') return mutedSidebar
+            return undefined
+          },
+        })
+        document.getElementById('fake-toggle').click()
+        await sleep(420)
+        if (typeof disposeA === 'function') disposeA()
+        out.muted = {
+          openTabIn: mutedState.openTabIn,
+          openTab: mutedState.openTab,
+        }
+
+        // B) A column that was never expanded: `openTabIn` is accepted by the
+        //    service but nothing is drawn until the built-in expand control
+        //    runs once, then the same call lands the tab.
+        var state = { tabs: [], expanded: false, openTabIn: 0, openTab: 0, expand: 0 }
+        document.getElementById('fake-expand').addEventListener('click', function () {
+          state.expand += 1
+          state.expanded = true
+        })
+        var sidebar = {
+          mounted: mountedStore('sess-1'),
+          openTabIn: function (sessionId, kind) {
+            state.openTabIn += 1
+            if (!state.expanded) return
+            var present = state.tabs.some(function (tab) {
+              return tab.id === 'dsh-webpilot/panel'
+            })
+            if (!present) state.tabs.push({ id: 'dsh-webpilot/panel', kind: kind })
+          },
+          openTab: function () {
+            state.openTab += 1
+          },
+          tabsIn: function () {
+            return state.tabs.slice()
+          },
+          isExpanded: function () {
+            return state.expanded
+          },
+        }
+        var disposeB = plugin.__test.watchSessions({
+          get: function (name) {
+            if (name === 'sessions') return fakeSessions('sess-1')
+            if (name === 'sidebarRight') return sidebar
+            return undefined
+          },
+        })
+        await sleep(820)
+        // The pushed-wake path: one event must trigger an evaluation long
+        // before the 1.5s fallback poll could.
+        var fetchedBefore = window.__fakeFetchCount || 0
+        window.dispatchEvent(new CustomEvent('webpilot:sessions'))
+        await sleep(180)
+        out.woke = (window.__fakeFetchCount || 0) > fetchedBefore
+        if (typeof disposeB === 'function') disposeB()
+        out.healed = {
+          openTabIn: state.openTabIn,
+          openTab: state.openTab,
+          expand: state.expand,
+          tabs: state.tabs.length,
+          expanded: state.expanded,
+        }
+        window.fetch = realFetch
+      } catch (error) {
+        out.error = error && error.message ? error.message : String(error)
+      }
+      var passed =
+        out.plugin === true &&
+        out.error === '' &&
+        out.muted !== null &&
+        out.muted.openTabIn === 0 &&
+        out.muted.openTab === 0 &&
+        out.healed !== null &&
+        out.healed.openTabIn >= 2 &&
+        out.healed.expand === 1 &&
+        out.healed.tabs === 1 &&
+        out.woke === true
+      out.passed = passed
+      var target = document.getElementById('r-ladder')
+      if (target !== null) {
+        target.textContent = passed
+          ? 'PASS · mute + mounted→expand→open + wake'
+          : 'FAIL · ' + (out.error || JSON.stringify(out))
+        target.className = passed ? '' : 'bad'
+      }
+      window.__harnessLadder = out
+      return out
+    })()
+  })()
+
+  // Expose hooks so a headless CDP script (or a curious human) can assert.
+  window.__harness = {
+    engine: engine,
+    compose: compose,
+    fire: fire,
+    standby: setStandbyMode,
+    stats: function () {
+      var stats = engine.stats()
+      var g = fxCanvas.getContext('2d')
+      var data = g.getImageData(0, 0, fxCanvas.width, fxCanvas.height).data
+      var painted = 0
+      for (var i = 0; i < data.length; i += 4) if (data[i + 3] > 8) painted += 1
+      return {
+        version: FX.version,
+        items: stats.items,
+        spider: stats.spider,
+        viewport: stats.viewport,
+        layout: stats.layout,
+        canvas: { width: fxCanvas.width, height: fxCanvas.height, painted: painted },
+        frame: { width: frame.width, height: frame.height },
+        hudLines: hud.children.length,
+        styleInjected: !!document.querySelector('style[data-plugin="dsh-webpilot-harness"]'),
+        panel: !!document.querySelector('[data-dsh-webpilot] .wp-fx'),
+      }
+    },
+    stopAuto: function () { window.clearInterval(autoTimer) },
+    ladder: ladder,
+  }
+})()
+</script>
+</body>
+</html>

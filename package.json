@@ -1,0 +1,52 @@
+{
+  "name": "dsh-webpilot",
+  "version": "1.0.0",
+  "description": "WebPilot: a browser that lives inside the DSH host. Every session gets its own Chrome tab, the agent drives it with webpilot_* tools, and a human watches or takes over that same tab in an on-demand right-Sidebar panel with a cyber-spider live-overlay (pilot cursor, click ripples, reading scanlines). Persistent profile means a QR-code login done once works everywhere.",
+  "license": "MIT",
+  "type": "module",
+  "main": "lib/index.js",
+  "exports": {
+    ".": "./lib/index.js",
+    "./client": "./lib/client.js",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib",
+    "cordis.patch.yml",
+    "README.md",
+    "docs",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=22.19"
+  },
+  "dsh": {
+    "engines": {
+      "dsh": ">=0.1.5-rc.2"
+    },
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "inject": [
+        "@deepseek-ai/dsh-client-locale",
+        "@deepseek-ai/dsh-client-ui-slots",
+        "@deepseek-ai/dsh-client-ui-conversation",
+        "@deepseek-ai/dsh-client-ui-sidebar-right",
+        "@deepseek-ai/dsh-client-modules"
+      ]
+    }
+  },
+  "keywords": [
+    "deepseek-harness",
+    "dsh",
+    "dsh-plugin",
+    "browser",
+    "webpilot",
+    "cdp",
+    "agent-tools"
+  ],
+  "author": "frank",
+  "private": true
+}
