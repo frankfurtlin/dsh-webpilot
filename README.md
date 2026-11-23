@@ -1,4 +1,43 @@
-# dsh-webpilot
+<div align="center">
+
+# dsh-webpilot 「内嵌浏览器」
+
+**把浏览器搬进 DSH 宿主：每个会话一个标签页，AI 用 `webpilot_*` 工具操作，你在右侧栏实时看着并随时接手。**
+
+A real browser inside the DSH host: one tab per session, driven by `webpilot_*` tools, with a human takeover panel.
+
+[![Version](https://img.shields.io/badge/version-1.0.0-blue)](package.json)
+[![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
+[![Platform](https://img.shields.io/badge/DSH-DeepSeek%20Harness-5b5ef7)](https://github.com/frankfurtlin/dsh-pocket)
+
+[中文](README.md) · [English](README.en.md)
+
+</div>
+
+![WebPilot 右侧栏面板：实时画面、地址栏与动作 HUD](docs/screenshots/hero.png)
+
+## 这是什么
+
+dsh-webpilot 在 DSH 宿主里常驻一个 Chrome，每个会话在其中拥有自己的标签页。agent 通过 `webpilot_*` 工具操作本会话的页面，人可以随时在右侧栏面板里看着、点着、登录；所有会话共用一个持久 Chrome profile，登录一次到处可用。不需要显示器，headless 机器也能跑。
+
+## 功能
+
+- **每会话一个标签页**：同一个 Chrome、同一份 profile，页面状态按会话隔离，登录态共享。
+- **十个工具**：`navigate` / `snapshot` / `click` / `type` / `press` / `scroll` / `screenshot` / `status` / `ask_human` / `close`。
+- **右侧栏实时画面**：CDP screencast 画到 canvas，鼠标、滚轮、键盘、输入法都能回灌到 agent 正在用的标签页；地址栏可直接输入跳转。
+- **操作特效 overlay**：蜘蛛光标飞行、点击涟漪、阅读扫描线、滚动光带，全部画在面板自己的 canvas 上，不注入被访问页面，尊重 `prefers-reduced-motion`。
+- **请人帮忙**：`webpilot_ask_human` 把标签页交给真人处理扫码/验证码，人点「我已完成」后工具调用才返回。
+- **无显示器可用**：`mode: auto` 自动起 Xvfb 走 headed，失败才退回 `--headless=new`；UA、语言、时区可配。
+
+## 安装
+
+```bash
+sudo systemd-run --unit=dsh-webpilot-install --collect --property=Type=oneshot \
+  /bin/bash /root/workspace/plugins/dsh-webpilot/scripts/install.sh
+```
+
+## 详细文档
+
 
 > 住进 DSH 宿主里的浏览器。每个会话在同一个 Chrome 里拥有自己的标签页；你在 **Web UI 右侧栏**里看这一页、
 > 随时接手，AI 用 `webpilot_*` 工具在同一页上读和操作；所有动作都以 cyber-spider 风格的特效画在面板上，

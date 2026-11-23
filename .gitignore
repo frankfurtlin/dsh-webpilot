@@ -125,3 +125,7 @@ logs/
 Thumbs.db
 *.swp
 .tmp/
+
+# README 用的界面截图要在 GitHub 上能显示
+!docs/screenshots/
+!docs/screenshots/**
