@@ -207,7 +207,7 @@ TZ=Asia/Shanghai node e2e/address-bar.mjs
 | `screen`（页面看到的） | `800x600`（headless） | `1440x900`（Xvfb headed） |
 | WebGL 渲染器 | SwiftShader（headless 有） | SwiftShader（headed 需 `--enable-unsafe-swiftshader`，否则 `null`） |
 | `navigator.webdriver` | false | false（`--disable-blink-features=AutomationControlled`，改动前就有） |
-| 出口 IP | REDACTED（广州腾讯云，UTC+8） | 同 |
+| 出口 IP | （广州腾讯云，UTC+8） | 同 |
 
 改造前最扎眼的是"出口 IP 在广州、浏览器按 UTC 说话、只认英文"。
 
