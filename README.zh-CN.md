@@ -4,11 +4,8 @@
 
 **把浏览器搬进 DSH 宿主：每个会话一个标签页，AI 用 `webpilot_*` 工具操作，你在右侧栏实时看着并随时接手。**
 
-A real browser inside the DSH host: one tab per session, driven by `webpilot_*` tools, with a human takeover panel.
-
 [![Version](https://img.shields.io/badge/version-1.0.0-blue)](package.json)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
-[![Platform](https://img.shields.io/badge/DSH-DeepSeek%20Harness-5b5ef7)](https://github.com/frankfurtlin/dsh-pocket)
 
 [English](README.md) · **简体中文**
 
