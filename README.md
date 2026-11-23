@@ -1,198 +1,148 @@
-<div align="center">
+# dsh-webpilot
 
-# dsh-webpilot 「内嵌浏览器」
-
-**把浏览器搬进 DSH 宿主：每个会话一个标签页，AI 用 `webpilot_*` 工具操作，你在右侧栏实时看着并随时接手。**
-
-A real browser inside the DSH host: one tab per session, driven by `webpilot_*` tools, with a human takeover panel.
+**English** · [简体中文](README.zh-CN.md)
 
 [![Version](https://img.shields.io/badge/version-1.0.0-blue)](package.json)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![Platform](https://img.shields.io/badge/DSH-DeepSeek%20Harness-5b5ef7)](https://github.com/frankfurtlin/dsh-pocket)
 
-[中文](README.md) · [English](README.en.md)
+A real Chrome that lives inside the DSH host: one tab per session, driven by `webpilot_*` tools, watched and taken over from the right sidebar.
 
-</div>
+![The WebPilot panel on example.com: live picture, address bar, spider-cursor effect and action log](docs/screenshots/hero.png)
 
-![WebPilot 右侧栏面板：实时画面、地址栏与动作 HUD](docs/screenshots/hero.png)
+## The problem
 
-## 这是什么
+DSH agents run on machines without a display, and the sites they need are behind a login. Headless automation stops at the first step that needs a person: an SSO redirect, an SMS code, a QR code, an image captcha. Sending a screenshot to a chat window does not help either — the person still cannot click the page the agent is on.
 
-dsh-webpilot 在 DSH 宿主里常驻一个 Chrome，每个会话在其中拥有自己的标签页。agent 通过 `webpilot_*` 工具操作本会话的页面，人可以随时在右侧栏面板里看着、点着、登录；所有会话共用一个持久 Chrome profile，登录一次到处可用。不需要显示器，headless 机器也能跑。
+## Quick example
 
-## 功能
+A session that has to get past a cloud-console login:
 
-- **每会话一个标签页**：同一个 Chrome、同一份 profile，页面状态按会话隔离，登录态共享。
-- **十个工具**：`navigate` / `snapshot` / `click` / `type` / `press` / `scroll` / `screenshot` / `status` / `ask_human` / `close`。
-- **右侧栏实时画面**：CDP screencast 画到 canvas，鼠标、滚轮、键盘、输入法都能回灌到 agent 正在用的标签页；地址栏可直接输入跳转。
-- **操作特效 overlay**：蜘蛛光标飞行、点击涟漪、阅读扫描线、滚动光带，全部画在面板自己的 canvas 上，不注入被访问页面，尊重 `prefers-reduced-motion`。
-- **请人帮忙**：`webpilot_ask_human` 把标签页交给真人处理扫码/验证码，人点「我已完成」后工具调用才返回。
-- **无显示器可用**：`mode: auto` 自动起 Xvfb 走 headed，失败才退回 `--headless=new`；UA、语言、时区可配。
+```text
+agent   webpilot_navigate("https://console.cloud.tencent.com")
+        → Chrome starts, this session gets a tab, the sidebar panel opens
 
-## 安装
+agent   webpilot_snapshot()
+        → "登录 / Login" and a QR code: the page is behind a login wall
 
-```bash
-sudo systemd-run --unit=dsh-webpilot-install --collect --property=Type=oneshot \
-  /bin/bash /root/workspace/plugins/dsh-webpilot/scripts/install.sh
+agent   webpilot_ask_human("Scan the QR code in the sidebar, then press Done.")
+        → the tab is brought to the front for the person, the tool call waits
+
+person  scans the code in the panel and presses 完成 / Done
+
+agent   webpilot_snapshot()
+        → the project list, three rows with clickable boxes
 ```
 
-## 详细文档
+The login now lives in the shared Chrome profile, so the next session is already signed in.
 
+## Install
 
-> 住进 DSH 宿主里的浏览器。每个会话在同一个 Chrome 里拥有自己的标签页；你在 **Web UI 右侧栏**里看这一页、
-> 随时接手，AI 用 `webpilot_*` 工具在同一页上读和操作；所有动作都以 cyber-spider 风格的特效画在面板上，
-> 一眼能看出它在点什么、读哪里。**持久 profile**：扫码登录一次，所有会话、重启之后都还在。
-
-基于 [`imroc/dsh-embedded-browser`](https://github.com/imroc/dsh-embedded-browser) v0.3.0（MIT）的
-vendored fork，叠加了 WebPilot 的视觉与特效层。调研背景见 [docs/RESEARCH.md](docs/RESEARCH.md)。
-
-![WebPilot 面板](e2e/shots/run-2026-11-18T05-53-39/hero/hero-panel.png)
-
-## 为什么需要它
-
-agent 跑在没有显示器的机器上，而它要用的站点都在登录后面。纯无头自动化会在「需要真人」的第一步卡死：
-SSO 跳转、短信/邮箱验证码、扫码登录、图形验证码。WebPilot 把这一步交还给人——**就在 AI 正在操作的那个
-标签页上**，人扫码/点按之后，AI 带着同一个登录态继续往下做，结果落进持久 profile，登录一次到处可用。
-
-## 能力
-
-### 模型工具（`webpilot_*`）
-
-| 工具 | 作用 |
-|---|---|
-| `webpilot_status` | 浏览器是否在跑、本会话标签页的 URL/标题、有没有待人工处理的动作 |
-| `webpilot_navigate` | 在本会话标签页打开网址（首次调用启动浏览器） |
-| `webpilot_snapshot` | 读页面：标题、URL、带编号的可交互元素（含 `box` 坐标）、可见正文 |
-| `webpilot_click` | 按元素编号或可见文字点击，派发真实输入事件 |
-| `webpilot_type` | 聚焦字段并注入文本（兼容 React/Vue 受控输入），可顺带回车提交 |
-| `webpilot_press` | 按一个键（Enter/Tab/Escape/方向键/PageUp/Down…） |
-| `webpilot_scroll` | 滚动（down/up/left/right/top/bottom） |
-| `webpilot_screenshot` | 截图作为图片附件返回给模型 |
-| `webpilot_ask_human` | **请人帮忙**：把本会话标签页调到面板，阻塞等你点「我已完成」（扫码登录就靠它） |
-| `webpilot_close` | 关闭本会话标签页（profile 与登录态保留） |
-
-### 右侧栏面板
-
-- 会话有浏览器标签页时自动弹出；右侧栏引导页里也有「WebPilot」入口可手动打开。
-- 面板是**实时画面**（CDP screencast → canvas），同时接受真实鼠标/滚轮/键盘/输入法，事件回灌进 AI 正在用的那个标签页——不是截图查看器。
-- 顶部是**能真正输入地址栏**：点一下直接打字，`Enter` 打开（裸域名自动补 `https://`，`localhost` 补 `http://`，
-  `Ctrl/⌘+L` 聚焦、`Esc` 取消）；旁边是后退 / 前进 / 刷新。人不用再委托给 agent 才能换网址。
-- 配色是**浅色**，跟随 Web GUI 的主色调：白玻璃底、蓝灰细线、加深版强调色；不再是大面积深色控制台。
-- 顶部状态条：`● LIVE` / `STANDBY` / `HUMAN-TAKEOVER`；左下 HUD 记录 agent 的每一次动作。
-- 操作特效（全部画在面板自己的 overlay canvas 上，不注入被访问页面）：蜘蛛光标飞行定位、点击涟漪 + 目标括号、
-  阅读扫描线 + 数据粒子、滚动光带、导航故障闪屏。尊重 `prefers-reduced-motion`。
-- 接管横幅只出现在发起请求的那个会话的面板里；点「我已完成」即让等待中的工具调用返回（可以顺手留一句话）。
-
-## 安装
-
-新增插件行属于**启动期**组合变更（web profile 没有 HMR），要重启承载 DSH 的进程。如果 DSH 是 systemd 托管
-且你也从同一个进程里让 agent 干活，重启会杀掉正在跑的那一轮对话——所以安装脚本必须**脱离 agent 的进程树**运行。
+Adding a plugin row is a startup-time change to the composition, and the `web` profile has no HMR. Restarting DSH also kills the agent turn that runs in the same process, so the installer has to run detached from the agent's process tree:
 
 ```sh
-# 幂等脚本：备份 profile 清单 → 登记 dependency(link:) + bundles → 建 node_modules 软链
-#            → systemctl restart → 等端口 → 换 token cookie → 打 /api/dsh-webpilot/health
-# 失败自动回滚（清单 + 软链 + 再重启一次）。全过程写 scripts/install.log。
 sudo systemd-run --unit=dsh-webpilot-install --collect --property=Type=oneshot \
   /bin/bash /root/workspace/plugins/dsh-webpilot/scripts/install.sh
-
-# 或者不经 systemd 的等价方式（只需进程组脱离，且确认不会被 cgroup 连带杀掉）：
-#   setsid nohup /bin/bash /root/workspace/plugins/dsh-webpilot/scripts/install.sh >/dev/null 2>&1 &
 ```
 
-装完刷新 Web UI，右侧栏引导页里会出现「WebPilot」。没有 X server 也能跑：`mode: auto` 下自动起一个 Xvfb 虚拟显示走 headed（页面看到真实 1440x900 屏幕），起不来才退回 `--headless=new`。
+The script is idempotent: it backs up the profile manifest, registers the `link:` dependency and the bundle, creates the `node_modules` symlink, restarts the service, waits for the port, swaps the token cookie and probes `/api/dsh-webpilot/health`. On failure it rolls back (manifest and symlink) and restarts once more. The whole run is logged to `scripts/install.log`.
 
-卸载（保留 Chrome profile，登录态不丢；加 `--purge` 连 profile 一起删）：
+Without systemd, run it in its own process group so the agent's cgroup cannot kill it:
+
+```sh
+setsid nohup /bin/bash /root/workspace/plugins/dsh-webpilot/scripts/install.sh >/dev/null 2>&1 &
+```
+
+Refresh the Web UI afterwards; the "WebPilot" entry appears in the right-sidebar guide page. No X server is required: `mode: auto` starts a private Xvfb and runs headed there, and falls back to `--headless=new` only if that fails.
+
+Editing the manifest by hand instead: add `"dsh-webpilot": "link:/root/workspace/plugins/dsh-webpilot"` to `dependencies`, append `"dsh-webpilot"` to the `dsh.profile.bundles` array, symlink the package under the profile's `node_modules/`, then restart. To uninstall (the Chrome profile and its logins survive; add `--purge` to delete them):
 
 ```sh
 sudo systemd-run --unit=dsh-webpilot-uninstall --collect --property=Type=oneshot \
   /bin/bash /root/workspace/plugins/dsh-webpilot/scripts/uninstall.sh
 ```
 
-手动安装（自己改清单时）：`dependencies` 加 `"dsh-webpilot": "link:/root/workspace/plugins/dsh-webpilot"`，
-`dsh.profile.bundles` 数组末尾加 `"dsh-webpilot"`，再在 profile 的 `node_modules/` 里建同名软链，最后重启。
+Requirements: DSH with a `web` profile (`dsh` engine `>= 0.1.5-rc.2`), Node.js `>= 22.19`, and Chrome or Chromium on the host. Xvfb and SwiftShader are optional, and only matter on a machine without a GPU or a display.
 
-## 使用
+## Usage
 
-**人**：右侧栏打开 WebPilot → 看到 AI 正在操作的页面 → 需要登录时，AI 调 `webpilot_ask_human`，横幅出现，你直接扫码/输密码，完成后点「我已完成」。
+The agent gets ten tools. `status` reports whether the browser is up and which tab this session owns. `navigate` opens a URL, and `snapshot` reads the page as numbered interactive elements plus visible text. `click`, `type`, `press` and `scroll` act on it with real input events, so focus, hover and React/Vue controlled inputs behave like a human click. `screenshot` returns the page as an image. `ask_human` hands the tab to a person and blocks until they press Done. `close` closes the tab and leaves the profile alone.
 
-**AI**（示例话术）：
+For the human, the panel in the right sidebar is a live picture: CDP screencast into a canvas. It accepts mouse, wheel, keyboard and IME input and replays it into the tab the agent is using, so it is not a screenshot viewer. The address bar works: click it, type, press Enter. Back, forward and reload sit next to it. A status line reads `● LIVE`, `STANDBY` or `HUMAN-TAKEOVER`, and the bottom-left HUD logs every agent action. Effects — spider-cursor flight, click ripples, reading scanline, scroll bands — are painted on the panel's own overlay canvas, never injected into the visited page, and they respect `prefers-reduced-motion`.
 
-> 用 webpilot_navigate 打开 https://example.com，webpilot_snapshot 读一下，然后点第一个链接。
+Example prompts:
 
-> 打开 https://console.cloud.tencent.com ，如果要求登录就调 webpilot_ask_human，说明「请扫码登录，完成后点我已完成」。
+> Open https://example.com with webpilot_navigate, read the page with webpilot_snapshot, then click the first link.
 
-登录态在 `$DSH_HOME/webpilot/profile`（默认），多个会话共享；`webpilot_close` 或空闲回收都不影响它。
+> Open https://console.cloud.tencent.com. If it asks for a login, call webpilot_ask_human and ask me to scan the QR code.
 
-## 配置
+Login state lives in `$DSH_HOME/webpilot/profile` by default and is shared by every session. `webpilot_close` and the idle shutdown do not touch it.
 
-在 profile 的 patch 层覆盖（`config` 是整键替换）：
+## Configuration
+
+Override fields in the profile's patch layer. `config` replaces the whole key; it is not a deep merge:
 
 ```yaml
 - id: webpilot
   config:
     mode: headless              # auto | headed | headless
-    viewport: 1440x900          # 页面视口，也是面板特效坐标系
-    idleShutdownMinutes: 30     # 空闲回收；0 = 永不
-    effects: true               # 关掉则宿主不发 fx 事件
-    effectLeadMs: 260           # 动作前给动画留的时间
-    lazyTools: false            # true = 由 browser-use 技能开闸后才发布工具
-    languages: 'zh-CN,zh,en'    # 空 = 沿用宿主；非空则加 --lang / --accept-lang
-    timezone: 'Asia/Shanghai'   # 空 = 沿用宿主；非空则注入 Chrome 进程的 TZ
-    extraArgs:                  # 追加启动参数，例如无 GPU 机器的软件渲染兜底
+    viewport: 1440x900          # page viewport, also the effect coordinate space
+    idleShutdownMinutes: 30     # stop Chrome after N idle minutes; 0 = never
+    effects: true               # false = the host stops emitting fx events
+    effectLeadMs: 260           # time reserved for the animation before the action lands
+    lazyTools: false            # true = publish the tools only after the browser-use skill gate
+    languages: 'zh-CN,zh,en'    # empty = inherit the host
+    timezone: 'Asia/Shanghai'   # empty = inherit the host
+    extraArgs:
       - --enable-unsafe-swiftshader
 ```
 
-完整字段见 `lib/index.js` 的 `DEFAULT_CONFIG`。
+The fields below are the ones worth knowing. The full list is `DEFAULT_CONFIG` in `lib/index.js`.
 
-`languages` / `timezone` 是给「要登录的网站」准备的：headless 默认答 `en-US` + `Etc/Unknown`（偏移 0），
-而账号所在时区是 UTC+8 —— 出口 IP 在广州、浏览器却按 UTC 说话，是风控打分里最重的矛盾之一。
-配 `mode: auto` + Xvfb 后页面还能看到真实 `screen 1440x900`（headless 报 `800x600`）；`webgl` 需要
-SwiftShader 兜底（否则 headed 下 `getContext('webgl')` 直接是 `null`，比软件渲染更像机器人）。
+| Field | Default | Meaning |
+|---|---|---|
+| `browserPath` | `''` | Chrome/Chromium binary; empty = auto-detect |
+| `profileDir` | `''` | Persistent profile; empty = `$DSH_HOME/webpilot/profile` |
+| `mode` | `auto` | Headed on a private Xvfb when possible, otherwise headless |
+| `screen` / `windowSize` / `viewport` | `1440x900x24` / `1440x900` / `1440x900` | Virtual display, Chrome window, page viewport |
+| `port` | `0` | Fixed DevTools port; 0 picks a free one |
+| `startUrl` | `about:blank` | First URL of a new session tab |
+| `snapshotMaxChars` / `maxElements` | `4000` / `80` | Snapshot text budget and element cap |
+| `screencastQuality` / `screencastMaxWidth` | `60` / `1440` | Panel picture quality and stream width |
+| `askHumanTimeoutSeconds` | `600` | Default budget for `webpilot_ask_human` |
+| `idleShutdownMinutes` | `10` | Stop Chrome after N idle minutes; 0 keeps it alive |
+| `autoStart` / `startTimeoutMs` | `false` / `20000` | Start with the host; wait for the DevTools endpoint |
+| `effects` / `effectLeadMs` / `lazyTools` | `true` / `260` / `false` | Panel effects, their lead time, tool gating |
 
-## 验收
+`languages` and `timezone` matter for sites you log into. Headless Chrome answers `en-US` and `Etc/Unknown` (offset 0); if the account sits in UTC+8, a browser that reports UTC is one of the strongest bot-wall signals. `mode: auto` with Xvfb also reports a real 1440x900 screen (headless says 800x600), and WebGL needs the SwiftShader fallback.
 
-```sh
-node e2e/backend-smoke.mjs   # 宿主半：真实 Chrome、fx 顺序、点击真到页面、截图（不依赖 DSH）
-node e2e/routes-smoke.mjs    # HTTP：鉴权闸门、health/sessions/state、open→close
-node e2e/auto-reveal.mjs     # 全新 Chrome profile：有页面时右栏自动展开、手动收起后不重开
-node e2e/address-bar.mjs     # 面板地址栏：输入→回车→真跳转、裸词拒绝、Ctrl+L/Esc、无文字重叠
-node e2e/gui-verify.mjs      # 真实 agent 一轮：面板 LIVE、画面、NAV/READ HUD、fx 上色、0 console error
-node e2e/run-all.mjs         # 串起来跑，写一份 e2e/shots/run-all-*/summary.json
-```
+The installer reads `DSH_PROFILE_DIR` (default `/root/.dsh/profiles/web`), `DSH_SERVICE` (default `deepseek-harness`), and `DSH_WEB_HOST` / `DSH_WEB_PORT` (default `127.0.0.1:3080`). The plugin reads `DSH_HOME`.
 
-验收走的是**隔离 dev 实例**（`DSH_HOME=/root/workspace/.dsh-dev`，端口 3090，raw CDP 驱动，无 Playwright），
-永远不会碰线上 3080；步骤与产物说明见 `e2e/README.md`。
+## What it doesn't do
 
-本机实测（2026-11-18）：`run-all` **5/5 步全 PASS** —— backend 57/57、routes 23/23、auto-reveal 15/15、address-bar 16/16、gui-verify 24/24；
-截图见 `e2e/shots/<run>/`（`hero/hero-panel.png` 为面板 + 页面 + HUD 的成品图，`03-panel-standby.png` 为空态）。
-安装到线上后的自动探测为 `scripts/postinstall-gui.mjs`（9 项：GUI 正常启动、右栏壳在、health 200、无未捕获异常），
-`scripts/install.sh` 在健康检查通过后会自动跑它（探测失败不影响安装结论）。
+- It is not a remote desktop. Native dialogs, file pickers and browser chrome are outside the panel.
+- It cannot pass a silent bot wall. A person can solve an interactive challenge in the panel, but a managed challenge that never shows a human-solvable step is a hard stop (for example `zh.minecraft.wiki`), and the plugin reports it instead of pretending.
+- It does not isolate identities. Sessions are isolated by page state, not by login: all sessions share one profile and therefore one set of logins. That is the product, and also its main risk.
+- It does not keep the browser running forever. Chrome stops after `idleShutdownMinutes` (default 10) and open tabs go with it; the profile and logins stay.
+- It cannot see a long page at once. `snapshot` truncates text (4000 characters by default) and lists at most 80 elements, so long pages need scrolling or a second snapshot.
+- It cannot inject tools into old sessions. Tools are published per session; sessions created before installation may not see `webpilot_*` until they are restarted.
 
-### 线上实测（2026-11-18，3080 端口，安装后）
+## Docs
 
-- `scripts/install-result.json`：`ok:true`、health `200`、service `active`；
-- `scripts/postinstall-gui.json`：**9/9 PASS**（GUI 渲染、右栏壳挂载、composer 存在、health/state 均 200、0 未捕获异常）；
-- 用同一套 `gui-verify` 打线上跑完整一轮：**24/24 PASS** —— 真实 agent 会话调到 `webpilot_navigate` 打开 example.com、
-  `webpilot_snapshot` 读页，面板自动浮现并 LIVE，HUD 出现 `NAV`/`READ`，fx 实际绘制，0 console error；
-  证据：`e2e/shots/live-2026-11-18/`（`05c-panel-live-clip.png` 是成品特写）。
+The Chinese README is the full reference: [README.zh-CN.md](README.zh-CN.md). Sections worth opening:
 
-> 工具（`webpilot_*`）按会话注入：插件装好后**新开的会话**才有；装之前就存在的会话可能仍看不到它们。
+- **能力**: the full tool table and every panel detail.
+- **配置**: the complete configuration surface and the environment variables.
+- **验收**: the recorded e2e and production runs, with screenshots.
+- **安全**: the security model in full.
+- **与上游的关系 / 许可**: what this fork changes and where the code came from.
 
-改动与踩坑记录见 `docs/HANDOFF.md`（交接/回归用）。
+Design and engineering notes are in [docs/RESEARCH.md](docs/RESEARCH.md), [docs/INTERFACE.md](docs/INTERFACE.md) and [docs/HANDOFF.md](docs/HANDOFF.md); the e2e harness is described in [e2e/README.md](e2e/README.md). To re-run everything: `node e2e/run-all.mjs` (isolated dev instance on port 3090, never touches production), or a single script such as `node e2e/backend-smoke.mjs`.
 
-## 安全
+## Contributing
 
-- 面板与 WebSocket 和 DSH Web UI **同一套认证**（`connection.requestRejection`）；能看面板的人本来就能操作宿主浏览器。
-- 会话之间隔离的是**页面状态**，不是身份：共享 profile 意味着所有会话共享同一批登录态——这是产品意义所在，也是风险所在。
-- profile 里是真实会话，只留在宿主本地，不上传。
-- CDP 端口只绑 127.0.0.1；输入回灌只走基线白名单消息，不向页面暴露 `Runtime.evaluate`。
-- 尽量用非 root 跑 Chrome 并保留沙箱；只在宿主是 root 时才自动补 `--no-sandbox`。
-- 反爬提示：headless 的 UA 已修正 + 关闭 `AutomationControlled`；交互式人机验证可由人在面板上点过，**静默 managed 挑战是硬阻断**（如 zh.minecraft.wiki），遇到会如实说明。
+Issues and pull requests are welcome. Run the e2e suite before sending a patch, keep the change small, and check with the maintainer before adding a runtime dependency: the fork is deliberately dependency-light, with a hand-written CDP client.
 
-## 与上游的关系 / 许可
+## License
 
-- 基线：`imroc/dsh-embedded-browser` v0.3.0，MIT。原始说明见 [docs/UPSTREAM-README.zh.md](docs/UPSTREAM-README.zh.md)，
-  许可证与版权声明见 [LICENSE](LICENSE)。
-- 本项目改动：重命名（工具/路由/profile 目录）、去掉对 `@deepseek-ai/dsh-tools`、`@deepseek-ai/schemastery`
-  的运行时依赖（改用本地 shim）、新增 fx 事件层（元素盒模型 + 操作前事件 + 阅读区域）、Chrome UA/反自动化参数、
-  客户端视觉层重写与特效 overlay。同样以 MIT 发布，保留上游版权声明。
+MIT — see [LICENSE](LICENSE). This is a vendored fork of [`imroc/dsh-embedded-browser`](https://github.com/imroc/dsh-embedded-browser) v0.3.0 (MIT). The upstream README is kept at [docs/UPSTREAM-README.zh.md](docs/UPSTREAM-README.zh.md), and `LICENSE` keeps the upstream copyright notice (`Copyright (c) 2026 roc`); this repository adds no separate copyright line.
