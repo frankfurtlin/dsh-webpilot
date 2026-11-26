@@ -301,11 +301,21 @@ async function main() {
     const dragMark = fx.length
     const dragResult = await manager.drag(SESSION, { x: 140, y: 264 }, { x: 336, y: 264 }, { steps: 10, durationMs: 200 })
     const dragState = JSON.parse(await manager.evaluate(SESSION, 'JSON.stringify(window.__webpilotDrag)'))
-    const dragFx = fx.slice(dragMark).filter((event) => event.payload.kind === 'click')
+    const dragEvents = fx.slice(dragMark)
+    const dragPressFx = dragEvents.filter((event) => event.payload.kind === 'click')
+    const dragTrailFx = dragEvents.filter((event) => event.payload.kind === 'drag')
     check('drag dispatches press and release once', dragState.down === 1 && dragState.up === 1, JSON.stringify(dragState))
     check('drag moves with the button held down', dragState.movesHeld >= 8, JSON.stringify(dragState))
     check('drag ends on the requested coordinate', Math.abs(dragState.lastX - 336) <= 2, String(dragState.lastX))
-    check('drag emits a start and an end effect', dragFx.length === 2, `${dragFx.length}`)
+    check('drag marks the press with one click effect', dragPressFx.length === 1, `${dragPressFx.length}`)
+    check(
+      'drag emits a trail effect with from/to/duration',
+      dragTrailFx.length === 1
+        && dragTrailFx[0].payload.from?.x === 140
+        && dragTrailFx[0].payload.to?.x === 336
+        && Number.isFinite(dragTrailFx[0].payload.durationMs),
+      JSON.stringify(dragTrailFx[0]?.payload),
+    )
     check('drag returns from/to', dragResult.from.x === 140 && dragResult.to.x === 336 && dragResult.steps === 10)
 
     // A conditional wait is the whole point: the node shows up 500ms late.

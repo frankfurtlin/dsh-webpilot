@@ -42,6 +42,7 @@ cyber-spider 风格的操作特效。代码基线是 `imroc/dsh-embedded-browser
 
 ```js
 { type: 'fx', kind: 'click',  x, y, box: {x,y,w,h}?, label?: string, tool: string }
+{ type: 'fx', kind: 'drag',   from: {x,y}, to: {x,y}, durationMs: number, label?: string, tool }
 { type: 'fx', kind: 'type',   x, y, box?, text: string, tool }
 { type: 'fx', kind: 'read',   boxes: [{x,y,w,h,kind:'text'|'element'}], title?, url?, tool }
 { type: 'fx', kind: 'scroll', direction: 'down'|'up'|'left'|'right'|'top'|'bottom', dy?: number, tool }
@@ -51,9 +52,10 @@ cyber-spider 风格的操作特效。代码基线是 `imroc/dsh-embedded-browser
 ```
 
 语义：
-- **动作前**发（click/type/nav start/key/scroll），客户端先播 200–400ms 动画，宿主再真正派发 CDP 动作 —— 由宿主 `effectLeadMs`（默认 260ms）控制节奏，让用户看得见。
+- **动作前**发（click/drag/type/nav start/key/scroll），客户端先播 200–400ms 动画，宿主再真正派发 CDP 动作 —— 由宿主 `effectLeadMs`（默认 260ms）控制节奏，让用户看得见。
+- `drag` 由 `webpilot_drag` 在**真实按下之前**发出：客户端先把光标飞到 `from`，再让轨迹在 `durationMs`（与真实拖拽同长）内长到 `to`，落点画 `DROP` 括号 + 涟漪；拖拽进行中蜘蛛光标压在轨迹头部。`prefers-reduced-motion` 下退化为一条静止虚线 + 淡入淡出。
 - `read` 在 snapshot 读完时发，`boxes` 是这次「读」覆盖的区域（正文段落/元素框），客户端画扫描线 + 括号高亮。
-- 客户端要容错：未知 kind 忽略；`box` 缺失时用 `x,y` 画点特效。
+- 客户端要容错：未知 kind 忽略；`box` 缺失时用 `x,y` 画点特效；`drag` 缺 `from`/`to` 时整条忽略。
 - `idle` 可省略。
 
 宿主实现建议：`BrowserManager` 构造收 `onFx(sessionId, payload)`，内部 `this.fx(sessionId, {...})`；

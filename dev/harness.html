@@ -98,6 +98,7 @@
     <div id="buttons">
       <button data-fx="compose" class="primary">replay all</button>
       <button data-fx="click">click</button>
+      <button data-fx="drag">drag</button>
       <button data-fx="read">read</button>
       <button data-fx="type">type</button>
       <button data-fx="scroll">scroll</button>
@@ -467,6 +468,11 @@
         engine.push({ kind: 'click', x: 540, y: 232, box: BOXES.link, label: 'scaled dot-product attention', tool: 'webpilot_click' })
         count()
         pushHud('click', 'CLICK', '→ (540, 232) · scaled dot-product attention')
+        break
+      case 'drag':
+        engine.push({ kind: 'drag', from: { x: 220, y: 640 }, to: { x: 880, y: 640 }, durationMs: 420, tool: 'webpilot_drag' })
+        count()
+        pushHud('drag', 'DRAG', '(220, 640) → (880, 640) · 420ms')
         break
       case 'read':
         engine.push({ kind: 'read', boxes: [BOXES.title, BOXES.lead, BOXES.info], title: 'Attention (transformer)', url: 'https://en.wikipedia.org/wiki/Attention_(transformer)', tool: 'webpilot_snapshot' })
