@@ -1,6 +1,6 @@
 {
   "name": "dsh-webpilot",
-  "version": "1.0.0",
+  "version": "1.2.0",
   "description": "WebPilot: a browser that lives inside the DSH host. Every session gets its own Chrome tab, the agent drives it with webpilot_* tools, and a human watches or takes over that same tab in an on-demand right-Sidebar panel with a cyber-spider live-overlay (pilot cursor, click ripples, reading scanlines). Persistent profile means a QR-code login done once works everywhere.",
   "license": "MIT",
   "type": "module",

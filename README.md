@@ -66,7 +66,18 @@ Requirements: DSH with a `web` profile (`dsh` engine `>= 0.1.5-rc.2`), Node.js `
 
 ## Usage
 
-The agent gets ten tools. `status` reports whether the browser is up and which tab this session owns. `navigate` opens a URL, and `snapshot` reads the page as numbered interactive elements plus visible text. `click`, `type`, `press` and `scroll` act on it with real input events, so focus, hover and React/Vue controlled inputs behave like a human click. `screenshot` returns the page as an image. `ask_human` hands the tab to a person and blocks until they press Done. `close` closes the tab and leaves the profile alone.
+The agent gets thirteen tools. `status` reports whether the browser is up and which tab this session owns. `navigate` opens a URL, and `snapshot` reads the page as numbered interactive elements (each with its `box`, and links with their absolute `href`) plus visible text. `click`, `drag`, `type`, `press` and `scroll` act on it with real input events, so focus, hover and React/Vue controlled inputs behave like a human click. `screenshot` returns the page as an image. `wait` blocks until a selector or a piece of text appears (or disappears). `ask_human` hands the tab to a person and blocks until they press Done. `close` closes the tab and leaves the profile alone.
+
+Five of them exist because the plain click-and-type loop is not always enough:
+
+- `snapshot` indexes **the whole page** even though it only prints a window of it, and takes `offset` / `maxElements` / `includeClickables`. A long settings form with sixty switches no longer hides the submit button behind element 80, and role-less clickable `<div>`s (portal dropdowns, custom menus) can be indexed on demand. Links carry their absolute `href`, so a target that only opens behind a tokenised URL can be navigated to directly instead of guessed.
+- `drag` presses, moves with the button held and releases, with eased intermediate steps — the only shape a slider CAPTCHA (Alibaba, Tencent, Meituan) accepts. Give it page coordinates (`x1,y1 → x2,y2`, usually read off a screenshot) or an element index plus `dx`/`dy`.
+- `wait` replaces guessing `sleep` after an action: it polls for a CSS selector or visible text (default 10s, cap 120s) and returns what matched, or `matched:false` on timeout instead of throwing.
+- `type` accepts `replace: true`, which clears the field first. Without it `Input.insertText` appends, so re-entering a corrected value silently produces "oldvalue newvalue".
+- `eval` runs a JS expression in the page and returns JSON. Reading `localStorage`, calling the site's own API with the logged-in session, or batching a hundred DOM actions in one round trip all beat screenshot-and-click. It runs with the page's own origin and cookies.
+- `click` also accepts `x` / `y` for the case where the target only exists visually.
+
+`ask_human` is built for the way QR logins actually fail: it re-requests an expired code before the human looks and every ten seconds while waiting, and its result carries a `loginState` probe (`loggedIn: true/false/null` plus the evidence — a login CTA still on screen, account navigation appearing, or new cookies landing).
 
 For the human, the panel in the right sidebar is a live picture: CDP screencast into a canvas. It accepts mouse, wheel, keyboard and IME input and replays it into the tab the agent is using, so it is not a screenshot viewer. The address bar works: click it, type, press Enter. Back, forward and reload sit next to it. A status line reads `● LIVE`, `STANDBY` or `HUMAN-TAKEOVER`, and the bottom-left HUD logs every agent action. Effects — spider-cursor flight, click ripples, reading scanline, scroll bands — are painted on the panel's own overlay canvas, never injected into the visited page, and they respect `prefers-reduced-motion`.
 

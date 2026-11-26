@@ -18,7 +18,9 @@ import { existsSync } from 'node:fs'
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { BrowserManager, normalizeAddress } from '../lib/browser.js'
+import { BrowserManager, normalizeAddress, sleep } from '../lib/browser.js'
+import { HumanBroker } from '../lib/human.js'
+import { defineTools } from '../lib/tools.js'
 
 const CHROME = process.env.WEBPILOT_CHROME ?? '/root/.cache/ms-playwright/chromium-1243/chrome-linux64/chrome'
 const SESSION = 'backend-smoke'
@@ -243,6 +245,189 @@ async function main() {
     const last = fx[fx.length - 1]
     check('last effect after the action settles is idle', last?.payload.kind === 'idle', String(last?.payload.kind))
     check('every effect is scoped to the acting session', fx.every((event) => event.sessionId === SESSION))
+
+    // ---------------------------------------- drag / wait / href / handover
+    // Four capabilities that the price-comparison run showed missing: link
+    // hrefs in the inventory, a real drag, a conditional wait, and a handover
+    // that keeps an expired QR alive and reports whether the login landed.
+    // Everything here runs on injected fixtures over about:blank, so no check
+    // depends on the network.
+    await manager.navigate(SESSION, 'about:blank')
+
+    await manager.evaluate(
+      SESSION,
+      `(() => {
+        const anchor = document.createElement('a');
+        anchor.href = 'https://example.com/with-token?xsec_token=abc';
+        anchor.textContent = 'Href Probe';
+        anchor.style.cssText = 'position:fixed;left:20px;top:20px;z-index:2147483647';
+        document.body.append(anchor);
+        return 'ok';
+      })()`,
+    )
+    const hrefSnapshot = await manager.snapshot(SESSION, { maxChars: 0, maxElements: 40 })
+    const hrefTarget = hrefSnapshot.elements.find((element) => element.label === 'Href Probe')
+    check(
+      'snapshot exposes absolute href on links',
+      hrefTarget?.href === 'https://example.com/with-token?xsec_token=abc',
+      JSON.stringify(hrefTarget),
+    )
+
+    // A drag is only credible to a slider CAPTCHA when it is press → several
+    // button-held moves → release, so the fixture records exactly that.
+    await manager.evaluate(
+      SESSION,
+      `(() => {
+        const zone = document.createElement('div');
+        zone.id = 'drag-zone';
+        zone.style.cssText = 'position:fixed;left:120px;top:240px;width:240px;height:48px;background:#ccd;z-index:2147483647';
+        window.__webpilotDrag = { down: 0, moves: 0, movesHeld: 0, up: 0, lastX: 0 };
+        zone.addEventListener('mousedown', (event) => {
+          window.__webpilotDrag.down += 1;
+          window.__webpilotDrag.lastX = event.clientX;
+        });
+        zone.addEventListener('mousemove', (event) => {
+          window.__webpilotDrag.moves += 1;
+          if (event.buttons === 1) window.__webpilotDrag.movesHeld += 1;
+        });
+        zone.addEventListener('mouseup', (event) => {
+          window.__webpilotDrag.up += 1;
+          window.__webpilotDrag.lastX = event.clientX;
+        });
+        document.body.append(zone);
+        return 'ok';
+      })()`,
+    )
+    const dragMark = fx.length
+    const dragResult = await manager.drag(SESSION, { x: 140, y: 264 }, { x: 336, y: 264 }, { steps: 10, durationMs: 200 })
+    const dragState = JSON.parse(await manager.evaluate(SESSION, 'JSON.stringify(window.__webpilotDrag)'))
+    const dragFx = fx.slice(dragMark).filter((event) => event.payload.kind === 'click')
+    check('drag dispatches press and release once', dragState.down === 1 && dragState.up === 1, JSON.stringify(dragState))
+    check('drag moves with the button held down', dragState.movesHeld >= 8, JSON.stringify(dragState))
+    check('drag ends on the requested coordinate', Math.abs(dragState.lastX - 336) <= 2, String(dragState.lastX))
+    check('drag emits a start and an end effect', dragFx.length === 2, `${dragFx.length}`)
+    check('drag returns from/to', dragResult.from.x === 140 && dragResult.to.x === 336 && dragResult.steps === 10)
+
+    // A conditional wait is the whole point: the node shows up 500ms late.
+    await manager.evaluate(
+      SESSION,
+      `(() => {
+        window.setTimeout(() => {
+          const late = document.createElement('div');
+          late.id = 'late-node';
+          late.textContent = 'LATE_MARKER';
+          late.style.cssText = 'position:fixed;left:20px;top:120px';
+          document.body.append(late);
+        }, 500);
+        return 'armed';
+      })()`,
+    )
+    const lateWait = await manager.waitFor(SESSION, { text: 'LATE_MARKER', timeoutMs: 4000, pollMs: 100 })
+    check('wait resolves on text that appears late', lateWait.matched === true && lateWait.element?.label === 'LATE_MARKER', JSON.stringify(lateWait.element))
+    check('wait reports the real elapsed time', lateWait.waitedMs >= 400, `${lateWait.waitedMs}ms`)
+    const timeoutWait = await manager.waitFor(SESSION, { text: 'NEVER_THERE', timeoutMs: 400, pollMs: 100 })
+    check('wait times out with matched:false instead of throwing', timeoutWait.matched === false && timeoutWait.timedOut === true)
+    await manager.evaluate(SESSION, "(() => { document.querySelector('#late-node')?.remove(); return 'ok' })()")
+    const goneWait = await manager.waitFor(SESSION, { selector: '#late-node', gone: true, timeoutMs: 1000, pollMs: 80 })
+    check('wait can wait for something to disappear', goneWait.matched === true)
+
+    // Handover fixture: an expired QR with a refresh control, plus a login CTA
+    // so loginState has something to report before the "human" logs in. It runs
+    // on a real https origin because the fixture needs to write a cookie.
+    await manager.navigate(SESSION, 'https://example.com/')
+    await manager.evaluate(
+      SESSION,
+      `(() => {
+        document.body.innerHTML = '';
+        window.__qrRefreshes = 0;
+        const stale = document.createElement('div');
+        stale.id = 'qr-text';
+        stale.textContent = '二维码失效，点击刷新';
+        stale.style.cssText = 'position:fixed;left:40px;top:60px';
+        const refresh = document.createElement('button');
+        refresh.textContent = '点击刷新';
+        refresh.style.cssText = 'position:fixed;left:40px;top:100px';
+        refresh.addEventListener('click', () => {
+          window.__qrRefreshes += 1;
+          stale.textContent = '请扫码登录';
+        });
+        const cta = document.createElement('a');
+        cta.href = '#login';
+        cta.textContent = '登录';
+        cta.style.cssText = 'position:fixed;left:40px;top:140px';
+        document.body.append(stale, refresh, cta);
+        return 'ok';
+      })()`,
+    )
+    const human = new HumanBroker({ onEvent: () => {} })
+    const toolList = defineTools({
+      manager,
+      human,
+      hub: { pushState: async () => {}, sync: async () => {} },
+      config: { askHumanTimeoutSeconds: 30 },
+      getAttachments: () => undefined,
+      logger: makeLogger('tools'),
+      getPanelAvailable: () => true,
+    })
+    const byName = new Map(toolList.map((tool) => [tool.name, tool]))
+    check('drag and wait are registered as tools', byName.has('webpilot_drag') && byName.has('webpilot_wait'))
+
+    const pending = byName.get('webpilot_ask_human').execute({ instruction: '扫码登录', timeoutSeconds: 30 }, { agent: { id: SESSION } })
+    await sleep(1200)
+    const request = human.snapshot(SESSION)
+    const refreshesBeforeDone = await manager.evaluate(SESSION, 'window.__qrRefreshes ?? 0')
+    check('ask_human re-requests an expired QR before the human looks', refreshesBeforeDone >= 1, String(refreshesBeforeDone))
+    // The "human" comes back having logged in: a new cookie and account nav.
+    await manager.evaluate(
+      SESSION,
+      `(() => {
+        document.cookie = 'webpilot_smoke_session=1; path=/';
+        document.body.innerHTML = '';
+        const nav = document.createElement('div');
+        nav.textContent = '我的订单 退出登录';
+        nav.style.cssText = 'position:fixed;left:40px;top:60px';
+        document.body.append(nav);
+        return 'ok';
+      })()`,
+    )
+    human.done(request?.id)
+    const handover = await pending
+    check('ask_human reports how many QR refreshes it did', handover.qrRefreshes >= 1, String(handover.qrRefreshes))
+    check('ask_human reports loggedIn:true after the login', handover.loginState?.loggedIn === true, JSON.stringify(handover.loginState))
+    check(
+      'ask_human login evidence names the signal',
+      Array.isArray(handover.loginState?.signals) && handover.loginState.signals.length > 0 && typeof handover.loginState.reason === 'string',
+      JSON.stringify(handover.loginState),
+    )
+
+    // Regression from the live-site run: bilibili's logged-out page carries both
+    // a 登录 button and a [class*=avatar] placeholder image, so a stray avatar
+    // must not be able to call it "logged in".
+    await manager.evaluate(
+      SESSION,
+      `(() => {
+        document.body.innerHTML = '';
+        const avatar = document.createElement('img');
+        avatar.className = 'user-avatar';
+        avatar.src = 'data:image/gif;base64,R0lGODlhAQABAAAAACw=';
+        avatar.style.cssText = 'position:fixed;left:10px;top:10px;width:16px;height:16px';
+        const cta = document.createElement('a');
+        cta.href = '#login';
+        cta.textContent = '登录';
+        cta.style.cssText = 'position:fixed;left:60px;top:10px';
+        document.body.append(avatar, cta);
+        return 'ok';
+      })()`,
+    )
+    const negativePending = byName.get('webpilot_ask_human').execute({ instruction: 'noop', timeoutSeconds: 5 }, { agent: { id: SESSION } })
+    await sleep(600)
+    human.done(human.snapshot(SESSION)?.id)
+    const negative = await negativePending
+    check(
+      'a visible login CTA wins over a stray avatar',
+      negative.loginState?.loggedIn === false && negative.loginState.reason === 'login-cta',
+      JSON.stringify(negative.loginState),
+    )
 
     // -------------------------------------------------------- effects:false
     const quietDir = await mkdtemp(join(tmpdir(), 'webpilot-smoke-quiet-'))

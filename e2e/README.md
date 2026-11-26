@@ -14,7 +14,7 @@ box.
 
 | file | scope | what it checks |
 | --- | --- | --- |
-| `backend-smoke.mjs` | host half, no DSH runtime | `BrowserManager` over real Chrome: clean UA, nav/read/click/scroll effects in contract order, page-space boxes, screenshots, quiet run with `effects:false` |
+| `backend-smoke.mjs` | host half, no DSH runtime | `BrowserManager` over real Chrome: clean UA, nav/read/click/scroll effects in contract order, page-space boxes, screenshots, quiet run with `effects:false`; plus the agent-ergonomics batch — link `href`s in the inventory, a real drag (press → held moves → release), `wait` on late text / timeout / disappearance, and an `ask_human` handover that refreshes an expired QR and reports `loginState` |
 | `routes-smoke.mjs` | HTTP | auth gate, `GET /health`, `/sessions`, `/state`, `/state` GET-only, `POST /open` → session appears with URL/title → `POST /close`, session gone; browser-process warm reuse is reported consistently |
 | `auto-reveal.mjs` | GUI, fresh Chrome profile | first use (right column never opened) + `POST /open` from the page ⇒ side column expands **by itself**, WebPilot tab exists & is selected, panel stage/fx/frame render, no console error; then a manual collapse must stick (no auto re-expand) |
 | `gui-verify.mjs` | GUI, full agent turn | GUI boots from the launch-token URL; Start guide opens the tab; panel shows STANDBY; an agent turn calling `webpilot_navigate` + `webpilot_snapshot` on `https://example.com` turns it LIVE (picture canvas, NAV/READ HUD lines, fx pixels painted); `health`/`state` answer 200; no console error |

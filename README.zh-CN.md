@@ -20,7 +20,14 @@ dsh-webpilot 在 DSH 宿主里常驻一个 Chrome，每个会话在其中拥有�
 ## 功能
 
 - **每会话一个标签页**：同一个 Chrome、同一份 profile，页面状态按会话隔离，登录态共享。
-- **十个工具**：`navigate` / `snapshot` / `click` / `type` / `press` / `scroll` / `screenshot` / `status` / `ask_human` / `close`。
+- **十一个工具**：`navigate` / `snapshot` / `click` / `type` / `press` / `scroll` / `screenshot` / `eval` / `status` / `ask_human` / `close`。
+
+  其中四个是这轮实战踩坑后补的：
+
+  - `snapshot` 现在**给整页元素编号**，只按窗口返回（`offset` / `maxElements` / `includeClickables`）。之前 60 多个开关的长表单会把提交按钮挤到 80 号之外，直接失去编号；portal 渲染的下拉菜单是无 role 的 `<div>`，也需要 `includeClickables` 才抓得到。
+  - `type` 支持 `replace: true`，先清空再输入。否则 `Input.insertText` 是追加，改值会变成「旧值新值」拼在一起。
+  - `eval` 在页面里跑一段 JS 并返回 JSON：读 `localStorage`、用已登录会话调站点自己的接口、一次批量做上百个 DOM 操作，都比截图点来点去可靠。它使用页面自身的 origin 与 Cookie。
+  - `click` 增加 `x` / `y`，用于只存在于视觉上、没有可用 DOM 节点的目标。
 - **右侧栏实时画面**：CDP screencast 画到 canvas，鼠标、滚轮、键盘、输入法都能回灌到 agent 正在用的标签页；地址栏可直接输入跳转。
 - **操作特效 overlay**：蜘蛛光标飞行、点击涟漪、阅读扫描线、滚动光带，全部画在面板自己的 canvas 上，不注入被访问页面，尊重 `prefers-reduced-motion`。
 - **请人帮忙**：`webpilot_ask_human` 把标签页交给真人处理扫码/验证码，人点「我已完成」后工具调用才返回。
@@ -59,13 +66,16 @@ SSO 跳转、短信/邮箱验证码、扫码登录、图形验证码。WebPilot 
 |---|---|
 | `webpilot_status` | 浏览器是否在跑、本会话标签页的 URL/标题、有没有待人工处理的动作 |
 | `webpilot_navigate` | 在本会话标签页打开网址（首次调用启动浏览器） |
-| `webpilot_snapshot` | 读页面：标题、URL、带编号的可交互元素（含 `box` 坐标）、可见正文 |
-| `webpilot_click` | 按元素编号或可见文字点击，派发真实输入事件 |
-| `webpilot_type` | 聚焦字段并注入文本（兼容 React/Vue 受控输入），可顺带回车提交 |
+| `webpilot_snapshot` | 读页面：标题、URL、带编号的可交互元素（含 `box` 坐标、链接的绝对 `href`）、可见正文 |
+| `webpilot_click` | 按元素编号、可见文字或页面坐标点击，派发真实输入事件 |
+| `webpilot_drag` | **真实拖拽**：按下 → 按住移动 → 抬起，滑块验证码（阿里/腾讯/美团）唯一认的形态；给坐标或「元素编号 + dx/dy」 |
+| `webpilot_type` | 聚焦字段并注入文本（兼容 React/Vue 受控输入），可 `replace` 先清空、可顺带回车提交 |
 | `webpilot_press` | 按一个键（Enter/Tab/Escape/方向键/PageUp/Down…） |
 | `webpilot_scroll` | 滚动（down/up/left/right/top/bottom） |
+| `webpilot_wait` | **等条件成立**：选择器出现 / 文本出现（`gone:true` 则等消失），默认 10s、上限 120s，超时返回 `matched:false` 不抛错 |
 | `webpilot_screenshot` | 截图作为图片附件返回给模型 |
-| `webpilot_ask_human` | **请人帮忙**：把本会话标签页调到面板，阻塞等你点「我已完成」（扫码登录就靠它） |
+| `webpilot_eval` | 在页面上下文里跑 JS 并取 JSON 结果（读 localStorage、借用登录态调接口、批量 DOM 操作） |
+| `webpilot_ask_human` | **请人帮忙**：把本会话标签页调到面板，阻塞等你点「我已完成」。等待期间每 10s 检查二维码是否失效并自动刷新；结束时返回 `loginState`（`loggedIn` + 证据） |
 | `webpilot_close` | 关闭本会话标签页（profile 与登录态保留） |
 
 ### 右侧栏面板
