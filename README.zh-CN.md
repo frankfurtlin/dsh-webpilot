@@ -75,6 +75,7 @@ SSO 跳转、短信/邮箱验证码、扫码登录、图形验证码。WebPilot 
 | `webpilot_press` | 按一个键（Enter/Tab/Escape/方向键/PageUp/Down…） |
 | `webpilot_scroll` | 滚动（down/up/left/right/top/bottom） |
 | `webpilot_wait` | **等条件成立**：选择器出现 / 文本出现（`gone:true` 则等消失），默认 10s、上限 120s，超时返回 `matched:false` 不抛错 |
+| `webpilot_look` | **标注截图**：视口截图 + 每个可点元素的编号框 + 同编号 legend，编号与 `snapshot`/`click` 完全同一套；被浮层盖住的元素不编号（点了也会被预检拒绝） |
 | `webpilot_screenshot` | 截图作为图片附件返回给模型 |
 | `webpilot_eval` | 在页面上下文里跑 JS 并取 JSON 结果（读 localStorage、借用登录态调接口、批量 DOM 操作） |
 | `webpilot_ask_human` | **请人帮忙**：把本会话标签页调到面板，阻塞等你点「我已完成」。等待期间每 10s 检查二维码是否失效并自动刷新；结束时返回 `loginState`（`loggedIn` + 证据） |

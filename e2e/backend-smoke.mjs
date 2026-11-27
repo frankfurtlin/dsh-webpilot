@@ -422,6 +422,19 @@ async function main() {
     check('type reads the field back', typed.value === 'hello webpilot', String(typed.value))
     check('type reports the change', typed.changed === true, JSON.stringify(typed))
 
+    // Annotated screenshot: the numbers on the image must be the same numbers
+    // webpilot_click takes, and the composite must stay inside the viewport frame.
+    const looked = await manager.look(SESSION, { maxMarks: 10 })
+    check('look returns a PNG', looked.data.length > 1000 && looked.data.slice(1, 4).toString('ascii') === 'PNG', String(looked.data.length))
+    check('look boxes every element it reports', looked.marks.length > 0 && looked.drawn === looked.marks.length, JSON.stringify({ marks: looked.marks.length, drawn: looked.drawn }))
+    check('look marks carry an index and a box', looked.marks.every((mark) => Number.isInteger(mark.index) && mark.box && mark.box.w >= 3 && mark.box.h >= 3), JSON.stringify(looked.marks[0]))
+    check('look keeps the screenshot frame', looked.data.readUInt32BE(16) === 1280 && looked.data.readUInt32BE(20) === 800, `${looked.data.readUInt32BE(16)}x${looked.data.readUInt32BE(20)}`)
+    check(
+      'look does not number an element hidden behind an overlay',
+      looked.marks.every((mark) => mark.label !== 'COVERED_BUTTON') && looked.hidden >= 1,
+      JSON.stringify({ hidden: looked.hidden, labels: looked.marks.map((mark) => mark.label) }),
+    )
+
     await manager.evaluate(
       SESSION,
       `(() => {
@@ -480,7 +493,7 @@ async function main() {
     check('drag and wait are registered as tools', byName.has('webpilot_drag') && byName.has('webpilot_wait'))
 
     const pending = byName.get('webpilot_ask_human').execute({ instruction: '扫码登录', timeoutSeconds: 30 }, { agent: { id: SESSION } })
-    await sleep(1200)
+    await sleep(2000)
     const request = human.snapshot(SESSION)
     const refreshesBeforeDone = await manager.evaluate(SESSION, 'window.__qrRefreshes ?? 0')
     check('ask_human re-requests an expired QR before the human looks', refreshesBeforeDone >= 1, String(refreshesBeforeDone))
