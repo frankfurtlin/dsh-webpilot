@@ -439,6 +439,49 @@ async function main() {
       JSON.stringify(negative.loginState),
     )
 
+    // ------------------------------------------------ snapshot payload text
+    // Three defects found in the source review: a silently dropped `total`, a
+    // head-only truncation that loses the page's conclusion, and opacity:0
+    // pre-rendered banners being read as if they were visible copy.
+    await manager.navigate(SESSION, 'https://example.com/')
+    await manager.evaluate(
+      SESSION,
+      `(() => {
+        document.body.innerHTML = '';
+        const banner = document.createElement('div');
+        banner.textContent = 'INVISIBLE_BANNER 提交成功';
+        banner.style.cssText = 'opacity:0;position:fixed;left:0;top:0';
+        const box = document.createElement('div');
+        for (let i = 0; i < 6; i += 1) {
+          const button = document.createElement('button');
+          button.textContent = 'btn-' + i;
+          box.append(button);
+        }
+        const head = document.createElement('p');
+        head.textContent = 'HEAD_MARKER ' + 'A'.repeat(400);
+        const tail = document.createElement('p');
+        tail.textContent = 'B'.repeat(400) + ' TAIL_MARKER';
+        document.body.append(banner, box, head, tail);
+        return 'ok';
+      })()`,
+    )
+    const truncated = await manager.snapshot(SESSION, { maxChars: 320, maxElements: 3 })
+    check('snapshot reports the full text length', truncated.textTotal > 800, String(truncated.textTotal))
+    check('truncated text keeps the head marker', truncated.text.includes('HEAD_MARKER'))
+    check('truncated text keeps the tail marker', truncated.text.includes('TAIL_MARKER'))
+    check('truncation says how much it dropped', /已省略中间 \d+ 字/.test(truncated.text), truncated.text.slice(0, 160))
+    check('opacity:0 pre-rendered text is not read', !truncated.text.includes('INVISIBLE_BANNER'), truncated.text.slice(0, 200))
+    const snapshotTool = byName.get('webpilot_snapshot')
+    const renderedSnapshot = snapshotTool.output.render([], truncated).map((block) => block.text).join('\n')
+    const renderedLines = renderedSnapshot.split('\n')
+    check('rendered snapshot names the full element count', /共 \d+ 个/.test(renderedSnapshot), renderedLines.slice(2, 4).join(' | '))
+    check('rendered snapshot explains the visible window', /窗口 1-3/.test(renderedSnapshot), renderedLines[2] ?? '')
+    check(
+      'rendered snapshot flags a truncated body',
+      /已截断：全文 \d+ 字/.test(renderedSnapshot),
+      renderedLines.find((line) => line.startsWith('页面正文')) ?? '',
+    )
+
     // -------------------------------------------------------- effects:false
     const quietDir = await mkdtemp(join(tmpdir(), 'webpilot-smoke-quiet-'))
     const quietFx = []
