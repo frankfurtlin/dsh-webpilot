@@ -35,9 +35,11 @@ dsh-webpilot 在 DSH 宿主里常驻一个 Chrome，每个会话在其中拥有�
 
 ## 安装
 
+下面的命令假设仓库检出在 `/opt/dsh/dsh-webpilot`，放在别处就替换成实际路径。
+
 ```bash
 sudo systemd-run --unit=dsh-webpilot-install --collect --property=Type=oneshot \
-  /bin/bash /root/workspace/plugins/dsh-webpilot/scripts/install.sh
+  /bin/bash /opt/dsh/dsh-webpilot/scripts/install.sh
 ```
 
 ## 详细文档
@@ -100,10 +102,10 @@ SSO 跳转、短信/邮箱验证码、扫码登录、图形验证码。WebPilot 
 #            → systemctl restart → 等端口 → 换 token cookie → 打 /api/dsh-webpilot/health
 # 失败自动回滚（清单 + 软链 + 再重启一次）。全过程写 scripts/install.log。
 sudo systemd-run --unit=dsh-webpilot-install --collect --property=Type=oneshot \
-  /bin/bash /root/workspace/plugins/dsh-webpilot/scripts/install.sh
+  /bin/bash /opt/dsh/dsh-webpilot/scripts/install.sh
 
 # 或者不经 systemd 的等价方式（只需进程组脱离，且确认不会被 cgroup 连带杀掉）：
-#   setsid nohup /bin/bash /root/workspace/plugins/dsh-webpilot/scripts/install.sh >/dev/null 2>&1 &
+#   setsid nohup /bin/bash /opt/dsh/dsh-webpilot/scripts/install.sh >/dev/null 2>&1 &
 ```
 
 装完刷新 Web UI，右侧栏引导页里会出现「WebPilot」。没有 X server 也能跑：`mode: auto` 下自动起一个 Xvfb 虚拟显示走 headed（页面看到真实 1440x900 屏幕），起不来才退回 `--headless=new`。
@@ -112,10 +114,10 @@ sudo systemd-run --unit=dsh-webpilot-install --collect --property=Type=oneshot \
 
 ```sh
 sudo systemd-run --unit=dsh-webpilot-uninstall --collect --property=Type=oneshot \
-  /bin/bash /root/workspace/plugins/dsh-webpilot/scripts/uninstall.sh
+  /bin/bash /opt/dsh/dsh-webpilot/scripts/uninstall.sh
 ```
 
-手动安装（自己改清单时）：`dependencies` 加 `"dsh-webpilot": "link:/root/workspace/plugins/dsh-webpilot"`，
+手动安装（自己改清单时）：`dependencies` 加 `"dsh-webpilot": "link:/opt/dsh/dsh-webpilot"`，
 `dsh.profile.bundles` 数组末尾加 `"dsh-webpilot"`，再在 profile 的 `node_modules/` 里建同名软链，最后重启。
 
 ## 使用
@@ -167,7 +169,7 @@ node e2e/gui-verify.mjs      # 真实 agent 一轮：面板 LIVE、画面、NAV/
 node e2e/run-all.mjs         # 串起来跑，写一份 e2e/shots/run-all-*/summary.json
 ```
 
-验收走的是**隔离 dev 实例**（`DSH_HOME=/root/workspace/.dsh-dev`，端口 3090，raw CDP 驱动，无 Playwright），
+验收走的是**隔离 dev 实例**（`DSH_HOME=~/workspace/.dsh-dev`，端口 3090，raw CDP 驱动，无 Playwright），
 永远不会碰线上 3080；步骤与产物说明见 `e2e/README.md`。
 
 本机实测（2026-11-18）：`run-all` **5/5 步全 PASS** —— backend 57/57、routes 23/23、auto-reveal 15/15、address-bar 16/16、gui-verify 24/24；

@@ -40,9 +40,11 @@ The login now lives in the shared Chrome profile, so the next session is already
 
 Adding a plugin row is a startup-time change to the composition, and the `web` profile has no HMR. Restarting DSH also kills the agent turn that runs in the same process, so the installer has to run detached from the agent's process tree:
 
+The commands below assume the checkout is at `/opt/dsh/dsh-webpilot` — substitute your own path if it lives elsewhere.
+
 ```sh
 sudo systemd-run --unit=dsh-webpilot-install --collect --property=Type=oneshot \
-  /bin/bash /root/workspace/plugins/dsh-webpilot/scripts/install.sh
+  /bin/bash /opt/dsh/dsh-webpilot/scripts/install.sh
 ```
 
 The script is idempotent: it backs up the profile manifest, registers the `link:` dependency and the bundle, creates the `node_modules` symlink, restarts the service, waits for the port, swaps the token cookie and probes `/api/dsh-webpilot/health`. On failure it rolls back (manifest and symlink) and restarts once more. The whole run is logged to `scripts/install.log`.
@@ -50,16 +52,16 @@ The script is idempotent: it backs up the profile manifest, registers the `link:
 Without systemd, run it in its own process group so the agent's cgroup cannot kill it:
 
 ```sh
-setsid nohup /bin/bash /root/workspace/plugins/dsh-webpilot/scripts/install.sh >/dev/null 2>&1 &
+setsid nohup /bin/bash /opt/dsh/dsh-webpilot/scripts/install.sh >/dev/null 2>&1 &
 ```
 
 Refresh the Web UI afterwards; the "WebPilot" entry appears in the right-sidebar guide page. No X server is required: `mode: auto` starts a private Xvfb and runs headed there, and falls back to `--headless=new` only if that fails.
 
-Editing the manifest by hand instead: add `"dsh-webpilot": "link:/root/workspace/plugins/dsh-webpilot"` to `dependencies`, append `"dsh-webpilot"` to the `dsh.profile.bundles` array, symlink the package under the profile's `node_modules/`, then restart. To uninstall (the Chrome profile and its logins survive; add `--purge` to delete them):
+Editing the manifest by hand instead: add `"dsh-webpilot": "link:/opt/dsh/dsh-webpilot"` to `dependencies`, append `"dsh-webpilot"` to the `dsh.profile.bundles` array, symlink the package under the profile's `node_modules/`, then restart. To uninstall (the Chrome profile and its logins survive; add `--purge` to delete them):
 
 ```sh
 sudo systemd-run --unit=dsh-webpilot-uninstall --collect --property=Type=oneshot \
-  /bin/bash /root/workspace/plugins/dsh-webpilot/scripts/uninstall.sh
+  /bin/bash /opt/dsh/dsh-webpilot/scripts/uninstall.sh
 ```
 
 Requirements: DSH with a `web` profile (`dsh` engine `>= 0.1.5-rc.2`), Node.js `>= 22.19`, and Chrome or Chromium on the host. Xvfb and SwiftShader are optional, and only matter on a machine without a GPU or a display.
@@ -127,7 +129,7 @@ The fields below are the ones worth knowing. The full list is `DEFAULT_CONFIG` i
 
 `languages` and `timezone` matter for sites you log into. Headless Chrome answers `en-US` and `Etc/Unknown` (offset 0); if the account sits in UTC+8, a browser that reports UTC is one of the strongest bot-wall signals. `mode: auto` with Xvfb also reports a real 1440x900 screen (headless says 800x600), and WebGL needs the SwiftShader fallback.
 
-The installer reads `DSH_PROFILE_DIR` (default `/root/.dsh/profiles/web`), `DSH_SERVICE` (default `deepseek-harness`), and `DSH_WEB_HOST` / `DSH_WEB_PORT` (default `127.0.0.1:3080`). The plugin reads `DSH_HOME`.
+The installer reads `DSH_PROFILE_DIR` (default `~/.dsh/profiles/web`), `DSH_SERVICE` (default `deepseek-harness`), and `DSH_WEB_HOST` / `DSH_WEB_PORT` (default `127.0.0.1:3080`). The plugin reads `DSH_HOME`.
 
 ## What it doesn't do
 
