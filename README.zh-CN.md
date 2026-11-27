@@ -180,7 +180,7 @@ node e2e/run-all.mjs         # 串起来跑，写一份 e2e/shots/run-all-*/summ
 ### 线上实测（2026-11-18，3080 端口，安装后）
 
 - `scripts/install-result.json`：`ok:true`、health `200`、service `active`；
-- `scripts/postinstall-gui.json`：**9/9 PASS**（GUI 渲染、右栏壳挂载、composer 存在、health/state 均 200、0 未捕获异常）；
+- `scripts/postinstall-gui.json`（探测在本机生成，**不入库**）：**9/9 PASS**（GUI 渲染、右栏壳挂载、composer 存在、health/state 均 200、0 未捕获异常）；
 - 用同一套 `gui-verify` 打线上跑完整一轮：**24/24 PASS** —— 真实 agent 会话调到 `webpilot_navigate` 打开 example.com、
   `webpilot_snapshot` 读页，面板自动浮现并 LIVE，HUD 出现 `NAV`/`READ`，fx 实际绘制，0 console error；
   证据：`e2e/shots/live-2026-11-18/`（`05c-panel-live-clip.png` 是成品特写）。

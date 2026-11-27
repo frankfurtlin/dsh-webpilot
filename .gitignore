@@ -129,3 +129,6 @@ Thumbs.db
 # README 用的界面截图要在 GitHub 上能显示
 !docs/screenshots/
 !docs/screenshots/**
+
+# 安装后 GUI 探测的结果（每次安装在本机重新生成，含本机路径，不入库）
+scripts/postinstall-gui.json
