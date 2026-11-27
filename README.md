@@ -127,6 +127,8 @@ The fields below are the ones worth knowing. The full list is `DEFAULT_CONFIG` i
 | `idleShutdownMinutes` | `10` | Stop Chrome after N idle minutes; 0 keeps it alive |
 | `autoStart` / `startTimeoutMs` | `false` / `20000` | Start with the host; wait for the DevTools endpoint |
 | `effects` / `effectLeadMs` / `lazyTools` | `true` / `260` / `false` | Panel effects, their lead time, tool gating |
+| `evalPolicy` | `ask` | `ask` = a person approves the first `webpilot_eval` in a session; `allow` = never ask; `deny` = the tool always refuses |
+| `allowedHosts` | `[]` | Hosts `webpilot_navigate` may open (exact or subdomain). Empty = unrestricted; a redirect off the list is closed and reported |
 
 `languages` and `timezone` matter for sites you log into. Headless Chrome answers `en-US` and `Etc/Unknown` (offset 0); if the account sits in UTC+8, a browser that reports UTC is one of the strongest bot-wall signals. `mode: auto` with Xvfb also reports a real 1440x900 screen (headless says 800x600), and WebGL needs the SwiftShader fallback.
 

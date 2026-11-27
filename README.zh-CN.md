@@ -134,6 +134,13 @@ sudo systemd-run --unit=dsh-webpilot-uninstall --collect --property=Type=oneshot
 
 登录态在 `$DSH_HOME/webpilot/profile`（默认），多个会话共享；`webpilot_close` 或空闲回收都不影响它。
 
+## 安全
+
+- **`webpilot_eval` 有人工闸**：默认 `evalPolicy: ask`，每个会话第一次执行 JavaScript 前，右侧面板里会问人；点「我已完成」即授权本会话后续调用，取消或超时则拒绝。`allow` 跳过询问，`deny` 直接关掉这个工具。官方 toolset 对 `javascript_exec` 是同一个规矩：不允许在没有批准机制的情况下启用。
+- **导航白名单**：`allowedHosts` 非空时，`webpilot_navigate` 只放行名单内的主机及其子域；落地页如果重定向到名单外，会被退回 `about:blank` 并报错（白名单只看模型写下的地址，看不到重定向，所以落地要再查一次）。
+- **错误文本脱敏**：写进错误信息的页面文案（元素标签、遮挡者）会被压成一行、去掉控制字符与双向覆写字符、截断到 40–80 字，并标注「页面内容」——错误会原样喂给模型，不能让页面借错误信息说话。
+- **原生弹窗**：`alert` / `confirm` / `prompt` 一律 dismiss（并记录），否则页面会卡住后续每一次调用；弹窗内容会随当次动作结果返回。
+
 ## 配置
 
 在 profile 的 patch 层覆盖（`config` 是整键替换）：
@@ -147,6 +154,8 @@ sudo systemd-run --unit=dsh-webpilot-uninstall --collect --property=Type=oneshot
     effects: true               # 关掉则宿主不发 fx 事件
     effectLeadMs: 260           # 动作前给动画留的时间
     lazyTools: false            # true = 由 browser-use 技能开闸后才发布工具
+    evalPolicy: ask             # ask = 每个会话第一次 webpilot_eval 要人批准；allow / deny
+    allowedHosts: []            # 导航白名单（含子域）；空 = 不限制；跳出去会被关掉并报错
     languages: 'zh-CN,zh,en'    # 空 = 沿用宿主；非空则加 --lang / --accept-lang
     timezone: 'Asia/Shanghai'   # 空 = 沿用宿主；非空则注入 Chrome 进程的 TZ
     extraArgs:                  # 追加启动参数，例如无 GPU 机器的软件渲染兜底

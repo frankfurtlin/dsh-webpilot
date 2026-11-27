@@ -520,6 +520,87 @@ async function main() {
       JSON.stringify(handover.loginState),
     )
 
+    // ------------------------------------------------------------- security
+    // JavaScript execution is the widest hole in a toolset that drives the user's
+    // logged-in profile; official browser toolsets refuse to enable it without an
+    // approval hook. These four checks pin the gate, the allowlist and the native
+    // dialog handler.
+    const buildTools = (overrides = {}, panelAvailable = true) => {
+      const list = defineTools({
+        manager,
+        human,
+        hub: { pushState: async () => {}, sync: async () => {} },
+        config: { askHumanTimeoutSeconds: 30, ...overrides },
+        getAttachments: () => undefined,
+        logger: makeLogger('tools'),
+        getPanelAvailable: () => panelAvailable,
+      })
+      return new Map(list.map((tool) => [tool.name, tool]))
+    }
+    const tryEval = async (tools, expression) => {
+      try {
+        return { value: await tools.get('webpilot_eval').execute({ expression }, { agent: { id: SESSION } }) }
+      } catch (error) {
+        return { error: error.message }
+      }
+    }
+    const denied = await tryEval(buildTools({ evalPolicy: 'deny' }), '1 + 1')
+    check('evalPolicy=deny refuses JavaScript execution', /关闭了 webpilot_eval/.test(denied.error ?? ''), String(denied.error))
+    const noPanel = await tryEval(buildTools({ evalPolicy: 'ask' }, false), '1 + 1')
+    check('evalPolicy=ask needs a panel to ask', /没有面板/.test(noPanel.error ?? ''), String(noPanel.error))
+    const allowedTools = buildTools({ evalPolicy: 'allow' })
+    const evaluated = await tryEval(allowedTools, '({ answer: 1 + 1 })')
+    check('evalPolicy=allow executes and returns the value', evaluated.value?.answer === 2, JSON.stringify(evaluated))
+    const oversized = await tryEval(allowedTools, "'x'.repeat(50000)")
+    check(
+      'eval caps an oversized result',
+      oversized.value?.truncated === true && typeof oversized.value?.preview === 'string' && oversized.value?.totalChars > 50000,
+      JSON.stringify({ truncated: oversized.value?.truncated, total: oversized.value?.totalChars }),
+    )
+
+    const originalAllowedHosts = manager.config.allowedHosts
+    manager.config.allowedHosts = ['example.com']
+    let hostError = null
+    try {
+      await manager.navigate(SESSION, 'https://www.iana.org/domains/reserved')
+    } catch (error) {
+      hostError = error.message
+    }
+    check('navigate refuses a host outside the allowlist', /白名单/.test(hostError ?? ''), String(hostError))
+    check('the allowlist admits the listed host', await manager.navigate(SESSION, 'https://example.com/').then(() => true, () => false))
+    check('the allowlist admits a subdomain', manager.assertHostAllowed('https://sub.example.com/x').enforced === true)
+    let lookalikeError = null
+    try {
+      manager.assertHostAllowed('https://notexample.com/')
+    } catch (error) {
+      lookalikeError = error.message
+    }
+    check('the allowlist rejects a lookalike host', lookalikeError !== null, String(lookalikeError))
+    manager.config.allowedHosts = originalAllowedHosts
+
+    await manager.navigate(SESSION, 'https://example.com/')
+    await manager.evaluate(
+      SESSION,
+      `(() => {
+        const button = document.createElement('button');
+        button.textContent = 'ASK_ALERT';
+        button.style.cssText = 'position:fixed;left:320px;top:320px;width:180px;height:40px';
+        button.addEventListener('click', () => { alert('确定要继续吗'); });
+        document.body.append(button);
+        return 'ok';
+      })()`,
+    )
+    const alertSnap = await manager.snapshot(SESSION, { maxChars: 0, maxElements: 20 })
+    const alertIndex = alertSnap.elements.find((element) => element.label === 'ASK_ALERT')?.index
+    const alertClick = await manager.click(SESSION, alertIndex)
+    const afterDialog = await manager.evaluate(SESSION, '1 + 1').catch((error) => `err:${error.message}`)
+    check('a native dialog is dismissed instead of hanging the next call', afterDialog === 2, String(afterDialog))
+    check(
+      'the dismissed dialog is reported in the action result',
+      Array.isArray(alertClick.dialogs) && /确定/.test(alertClick.dialogs[0]?.message ?? ''),
+      JSON.stringify(alertClick.dialogs),
+    )
+
     // Regression from the live-site run: bilibili's logged-out page carries both
     // a 登录 button and a [class*=avatar] placeholder image, so a stray avatar
     // must not be able to call it "logged in".
