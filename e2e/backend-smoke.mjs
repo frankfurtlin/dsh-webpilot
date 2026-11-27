@@ -341,6 +341,103 @@ async function main() {
     const goneWait = await manager.waitFor(SESSION, { selector: '#late-node', gone: true, timeoutMs: 1000, pollMs: 80 })
     check('wait can wait for something to disappear', goneWait.matched === true)
 
+    // ------------------------------------------- preflight + action assertion
+    // The action layer used to return one coordinate and nothing else: a covered
+    // button got "clicked" through the overlay, a disabled one was clicked for
+    // nothing, and a dead click only showed up on the next snapshot. These
+    // checks pin the three behaviours that replace it.
+    await manager.navigate(SESSION, 'https://example.com/')
+    await manager.evaluate(
+      SESSION,
+      `(() => {
+        document.body.innerHTML = '';
+        window.__hits = { yes: 0, no: 0, disabled: 0, covered: 0 };
+        const add = (id, text, handler) => {
+          const button = document.createElement('button');
+          button.id = id;
+          button.textContent = text;
+          if (handler) button.addEventListener('click', handler);
+          document.body.append(button);
+          return button;
+        };
+        add('yes', 'YES_BUTTON', () => {
+          window.__hits.yes += 1;
+          const note = document.createElement('div');
+          note.textContent = 'changed';
+          document.body.append(note);
+        });
+        add('no', 'NO_BUTTON', () => { window.__hits.no += 1; });
+        const disabled = add('dis', 'DISABLED_BUTTON', () => { window.__hits.disabled += 1; });
+        disabled.disabled = true;
+        const covered = add('cov', 'COVERED_BUTTON', () => { window.__hits.covered += 1; });
+        covered.style.cssText = 'position:fixed;left:640px;top:420px;width:200px;height:40px';
+        const overlay = document.createElement('div');
+        overlay.textContent = 'COOKIE BANNER';
+        overlay.style.cssText = 'position:fixed;left:620px;top:400px;width:240px;height:80px;z-index:99999;background:rgba(0,0,0,0.08)';
+        document.body.append(overlay);
+        return 'ok';
+      })()`,
+    )
+    const actionSnap = await manager.snapshot(SESSION, { maxChars: 0, maxElements: 60 })
+    const indexOfLabel = (label) => actionSnap.elements.find((element) => element.label === label)?.index
+
+    let coveredError = null
+    try {
+      await manager.click(SESSION, indexOfLabel('COVERED_BUTTON'))
+    } catch (error) {
+      coveredError = error.message
+    }
+    check('click refuses a covered target', /盖住|occluded/.test(coveredError ?? ''), String(coveredError))
+    check('the refusal names the blocker', /COOKIE BANNER/.test(coveredError ?? ''), String(coveredError))
+
+    let disabledError = null
+    try {
+      await manager.click(SESSION, indexOfLabel('DISABLED_BUTTON'))
+    } catch (error) {
+      disabledError = error.message
+    }
+    check('click refuses a disabled target', /disabled/.test(disabledError ?? ''), String(disabledError))
+
+    const yesClick = await manager.click(SESSION, indexOfLabel('YES_BUTTON'))
+    check('click reports a real DOM change', yesClick.changed === true && yesClick.mutations > 0, JSON.stringify(yesClick))
+    const noClick = await manager.click(SESSION, indexOfLabel('NO_BUTTON'))
+    check('click reports no change for a no-op handler', noClick.changed === false, JSON.stringify(noClick))
+    const hits = JSON.parse(await manager.evaluate(SESSION, 'JSON.stringify(window.__hits)'))
+    check('covered and disabled targets never received a click', hits.covered === 0 && hits.disabled === 0, JSON.stringify(hits))
+    check('visible targets did receive their click', hits.yes === 1 && hits.no === 1, JSON.stringify(hits))
+
+    await manager.evaluate(
+      SESSION,
+      `(() => {
+        const field = document.createElement('input');
+        field.id = 'field';
+        field.style.cssText = 'position:fixed;left:20px;top:640px;width:320px;height:28px';
+        document.body.append(field);
+        return 'ok';
+      })()`,
+    )
+    const fieldSnap = await manager.snapshot(SESSION, { maxChars: 0, maxElements: 60 })
+    const fieldIndex = fieldSnap.elements.find((element) => element.tag === 'input')?.index
+    const typed = await manager.type(SESSION, fieldIndex, 'hello webpilot')
+    check('type reads the field back', typed.value === 'hello webpilot', String(typed.value))
+    check('type reports the change', typed.changed === true, JSON.stringify(typed))
+
+    await manager.evaluate(
+      SESSION,
+      `(() => {
+        const link = document.createElement('a');
+        link.href = 'https://example.com/?after=click';
+        link.textContent = 'NAV_LINK';
+        link.style.cssText = 'position:fixed;left:20px;top:700px';
+        document.body.append(link);
+        return 'ok';
+      })()`,
+    )
+    const navSnap = await manager.snapshot(SESSION, { maxChars: 0, maxElements: 60 })
+    const navIndex = navSnap.elements.find((element) => element.label === 'NAV_LINK')?.index
+    const navClick = await manager.click(SESSION, navIndex)
+    check('click reports a navigation', navClick.navigated === true, JSON.stringify(navClick))
+
     // Handover fixture: an expired QR with a refresh control, plus a login CTA
     // so loginState has something to report before the "human" logs in. It runs
     // on a real https origin because the fixture needs to write a cookie.

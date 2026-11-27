@@ -78,6 +78,7 @@ Five of them exist because the plain click-and-type loop is not always enough:
 - `type` accepts `replace: true`, which clears the field first. Without it `Input.insertText` appends, so re-entering a corrected value silently produces "oldvalue newvalue".
 - `eval` runs a JS expression in the page and returns JSON. Reading `localStorage`, calling the site's own API with the logged-in session, or batching a hundred DOM actions in one round trip all beat screenshot-and-click. It runs with the page's own origin and cookies.
 - `click` also accepts `x` / `y` for the case where the target only exists visually.
+- Every acting tool (`click`, `type`, `press`, `drag`) is bracketed by a page-side probe: before the action, the target is checked for occlusion (`elementFromPoint`), `disabled` / `[inert]` and viewport position — a covered button is refused with the blocker's name instead of being "clicked" through an overlay; after the action, a MutationObserver plus the document identity decide whether the page **navigated**, **changed**, or did nothing, and that verdict comes back in the same result. `type` additionally reads the field back, because a controlled input can swallow the text without a single DOM mutation.
 
 `ask_human` is built for the way QR logins actually fail: it re-requests an expired code before the human looks and every ten seconds while waiting, and its result carries a `loginState` probe (`loggedIn: true/false/null` plus the evidence — a login CTA still on screen, account navigation appearing, or new cookies landing).
 

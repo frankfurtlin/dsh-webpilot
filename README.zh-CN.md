@@ -69,7 +69,7 @@ SSO 跳转、短信/邮箱验证码、扫码登录、图形验证码。WebPilot 
 | `webpilot_status` | 浏览器是否在跑、本会话标签页的 URL/标题、有没有待人工处理的动作 |
 | `webpilot_navigate` | 在本会话标签页打开网址（首次调用启动浏览器） |
 | `webpilot_snapshot` | 读页面：标题、URL、带编号的可交互元素（含 `box` 坐标、链接的绝对 `href`）、可见正文 |
-| `webpilot_click` | 按元素编号、可见文字或页面坐标点击，派发真实输入事件 |
+| `webpilot_click` | 按元素编号、可见文字或页面坐标点击，派发真实输入事件；**动作前预检**（被遮挡 / `disabled` / `[inert]` / 出视口就拒绝并点名遮挡者），**动作后断言**（`changed` / `navigated` / `mutations`） |
 | `webpilot_drag` | **真实拖拽**：按下 → 按住移动 → 抬起，滑块验证码（阿里/腾讯/美团）唯一认的形态；给坐标或「元素编号 + dx/dy」 |
 | `webpilot_type` | 聚焦字段并注入文本（兼容 React/Vue 受控输入），可 `replace` 先清空、可顺带回车提交 |
 | `webpilot_press` | 按一个键（Enter/Tab/Escape/方向键/PageUp/Down…） |
@@ -79,6 +79,7 @@ SSO 跳转、短信/邮箱验证码、扫码登录、图形验证码。WebPilot 
 | `webpilot_eval` | 在页面上下文里跑 JS 并取 JSON 结果（读 localStorage、借用登录态调接口、批量 DOM 操作） |
 | `webpilot_ask_human` | **请人帮忙**：把本会话标签页调到面板，阻塞等你点「我已完成」。等待期间每 10s 检查二维码是否失效并自动刷新；结束时返回 `loginState`（`loggedIn` + 证据） |
 | `webpilot_close` | 关闭本会话标签页（profile 与登录态保留） |
+动作类工具（`click`/`type`/`press`/`drag`）都会带上一句"成了没"：页面里装一个 MutationObserver 记账，动作后按「变更计数 + 静默时长」判定 `navigated` / `changed` / 无变化；`type` 还会读回字段值（受控输入把字吞掉时，DOM 一次都不会变）。
 
 ### 右侧栏面板
 
