@@ -19,7 +19,7 @@
 import { readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { api, devBase, loginCookie, readDevLaunch, waitFor } from './lib/dev.mjs'
+import { DEV_HOME, api, devBase, loginCookie, readDevLaunch, waitFor } from './lib/dev.mjs'
 
 process.env.TZ ??= 'Asia/Shanghai'
 
@@ -58,7 +58,7 @@ try
     const health = await api(base, cookie, '/health')
     check('GET /health returns 200', health.status === 200, `status ${health.status} ${health.text.slice(0, 200)}`)
     check('GET /health {ok:true, version}', health.json?.ok === true && health.json?.version === packageJson.version, JSON.stringify(health.json))
-    check('GET /health profileDir lives in the dev home', typeof health.json?.profileDir === 'string' && health.json.profileDir.startsWith('/root/workspace/.dsh-dev/'), health.json?.profileDir)
+    check('GET /health profileDir lives in the dev home', typeof health.json?.profileDir === 'string' && health.json.profileDir.startsWith(`${DEV_HOME}/`), health.json?.profileDir)
 
     const sessions = await api(base, cookie, '/sessions')
     check('GET /sessions returns 200', sessions.status === 200, `status ${sessions.status}`)

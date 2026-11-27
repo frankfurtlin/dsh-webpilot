@@ -2,9 +2,10 @@
 import { spawn } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { setTimeout as sleep } from 'node:timers/promises';
+import { defaultChrome, defaultHeadlessShell } from './chrome.mjs';
 
-export const CHROME = '/root/.cache/ms-playwright/chromium-1243/chrome-linux64/chrome';
-export const SHELL = '/root/.cache/ms-playwright/chromium_headless_shell-1243/chrome-headless-shell-linux64/chrome-headless-shell';
+export const CHROME = defaultChrome();
+export const SHELL = defaultHeadlessShell();
 
 export class CDP {
   constructor(ws) {

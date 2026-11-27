@@ -13,10 +13,10 @@ ladder}` for headless assertions.
 The line from the task brief works in a normal desktop environment:
 
 ```bash
-/root/.cache/ms-playwright/chromium-1243/chrome-linux64/chrome \
+~/.cache/ms-playwright/chromium-1243/chrome-linux64/chrome \
   --headless=new --no-sandbox --disable-gpu --window-size=1280,900 \
   --screenshot=/tmp/webpilot-harness.png \
-  file:///root/workspace/plugins/dsh-webpilot/dev/harness.html
+  file:///opt/dsh/dsh-webpilot/dev/harness.html
 ```
 
 On this host the one-shot `--screenshot` mode hangs inside the sandbox (no

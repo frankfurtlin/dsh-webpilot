@@ -2,7 +2,7 @@
  * Dev-instance helpers for the dsh-webpilot e2e checks.
  *
  * The e2e harness talks to an ISOLATED dev DSH (default
- * `$DSH_DEV_HOME=/root/workspace/.dsh-dev`, profile `dev`, port 3090). It never
+ * `$DSH_DEV_HOME=~/workspace/.dsh-dev`, profile `dev`, port 3090). It never
  * touches the live service on 3080: the dev instance is started by
  * `e2e/dev-instance.sh` and prints its one-time launch URL into
  * `<DSH_DEV_HOME>/dev.log`.
@@ -14,9 +14,10 @@
  */
 
 import { readFileSync } from 'node:fs'
+import { homedir } from 'node:os'
 import { join } from 'node:path'
 
-export const DEV_HOME = process.env.DSH_DEV_HOME ?? '/root/workspace/.dsh-dev'
+export const DEV_HOME = process.env.DSH_DEV_HOME ?? join(homedir(), 'workspace', '.dsh-dev')
 
 /** The dev instance's HTTP origin. Override with DSH_DEV_URL when reusing another port. */
 export function devBase()

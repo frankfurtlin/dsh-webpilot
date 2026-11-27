@@ -13,7 +13,7 @@
 set -uo pipefail
 
 PLUGIN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-PROFILE_DIR="${DSH_PROFILE_DIR:-/root/.dsh/profiles/web}"
+PROFILE_DIR="${DSH_PROFILE_DIR:-$HOME/.dsh/profiles/web}"
 SERVICE="${DSH_SERVICE:-deepseek-harness}"
 WEB_PORT="${DSH_WEB_PORT:-3080}"
 WEB_HOST="${DSH_WEB_HOST:-127.0.0.1}"
@@ -65,7 +65,7 @@ OLD_LINK_TARGET=""
 [ -L "$LINK" ] && OLD_LINK_TARGET="$(readlink "$LINK")"
 
 # ---------------------------------------------------------------- manifest
-# dependencies["dsh-webpilot"] = "link:/root/workspace/plugins/dsh-webpilot"
+# dependencies["dsh-webpilot"] = "link:<path-to-checkout>"
 # dsh.profile.bundles gains "dsh-webpilot" (right after the app bundles).
 "$NODE_BIN" - "$PKG" "$PLUGIN_DIR" <<'NODE' || { fail "manifest edit failed"; exit 5; }
 const fs = require('fs')

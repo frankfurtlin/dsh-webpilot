@@ -6,8 +6,8 @@ dependency: `e2e/lib/cdp.mjs` is a ~150-line zero-dependency CDP client built on
 Node's `WebSocket`, and Chrome comes from the Playwright cache already on this
 box.
 
-- dev instance: `http://127.0.0.1:3090` (`DSH_HOME=/root/workspace/.dsh-dev`)
-- **never** touches the live DSH on `:3080` or `/root/.dsh`
+- dev instance: `http://127.0.0.1:3090` (`DSH_HOME=~/workspace/.dsh-dev`)
+- **never** touches the live DSH on `:3080` or `~/.dsh`
 - artifacts: `e2e/shots/` (`png` screenshots + `summary.json` per run)
 
 ## Layout
@@ -27,26 +27,26 @@ box.
 ## Prerequisites
 
 Node ≥ 22 (uses the built-in `WebSocket`), Chromium at
-`/root/.cache/ms-playwright/chromium-1243/chrome-linux64/chrome` (override with
+`~/.cache/ms-playwright/chromium-1243/chrome-linux64/chrome` (override with
 `WEBPILOT_CHROME` for the host smoke), no X server needed.
 
 The dev instance must be running. It is a separate profile under
-`/root/workspace/.dsh-dev`; the live service on `:3080` is never touched.
+`~/workspace/.dsh-dev`; the live service on `:3080` is never touched.
 
 ```bash
 # 1. one-time profile (already present in this box)
 #    .dsh-dev/profiles/dev/{package.json,cordis.yml,cordis.patch.yml}
-#    node_modules/dsh-webpilot -> /root/workspace/plugins/dsh-webpilot
+#    node_modules/dsh-webpilot -> /opt/dsh/dsh-webpilot
 #    cordis.patch.yml carries llm-pi-ai + agent-default-model rows and
 #    .dsh-dev/.credentials.yaml is a mode-600 copy of the live credentials.
 
 # 2. start the isolated dev instance (TZ is required, see note below)
-cd /root/workspace/.dsh-dev && \
-  TZ=Asia/Shanghai DSH_HOME=/root/workspace/.dsh-dev \
-  dsh --profile dev --port 3090 --no-open > /root/workspace/.dsh-dev/dev.log 2>&1 &
+cd ~/workspace/.dsh-dev && \
+  TZ=Asia/Shanghai DSH_HOME=~/workspace/.dsh-dev \
+  dsh --profile dev --port 3090 --no-open > ~/workspace/.dsh-dev/dev.log 2>&1 &
 
 # 3. the launch token lives on the first line of dev.log
-head -1 /root/workspace/.dsh-dev/dev.log
+head -1 ~/workspace/.dsh-dev/dev.log
 ```
 
 **`TZ=Asia/Shanghai` is required.** This box's `/etc/localtime` points at
@@ -62,7 +62,7 @@ use `--no-agent` and the non-model checks.
 
 ## Run
 
-From the plugin root (`/root/workspace/plugins/dsh-webpilot`):
+From the plugin root (`/opt/dsh/dsh-webpilot`):
 
 ```bash
 # everything (host smoke, routes, auto-reveal, GUI+agent)

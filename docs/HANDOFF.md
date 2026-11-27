@@ -62,7 +62,7 @@
    浮现阶梯 = `openTabIn` → 点头部 `[data-sidebar-right-expand]` → 重试 → `openTab` 兜底。
 4. **本机 `/etc/localtime` 是 `Asia/Beijing`（非 IANA）**：不显式设 `TZ` 时 Node/Chrome 的 `Intl.timeZone` 为 undefined，
    GUI 发消息会报 `clientTimeZone invalid`。dev 实例与探测用的 Chrome 都必须 `TZ=Asia/Shanghai`。
-5. **`/root/.dsh` 对 agent 的 bash 沙箱不可写**：安装必须 `systemd-run --unit=... --collect --property=Type=oneshot`，
+5. **`~/.dsh` 对 agent 的 bash 沙箱不可写**：安装必须 `systemd-run --unit=... --collect --property=Type=oneshot`，
    既绕开 landlock 又脱离 agent 进程树（重启会杀掉 agent 所在进程）。
 6. **线上 3080 鉴权先于路由**：未登录访问未知 `/api/*` 也是 401，不能用 401/404 判断插件是否装好；必须带 launch token
    换 cookie 后打 `/api/dsh-webpilot/health`。
@@ -72,7 +72,7 @@
    这一点写入 README「安全/反爬」，不要对外宣称能自动过所有验证码。
 9. **systemd 的 PATH 里 `node` 是 v20.20.2（`/usr/bin/node`），没有全局 `WebSocket`**：第一次 detached 安装里
    `postinstall-gui.mjs` 因此报 `ReferenceError: WebSocket is not defined`（安装本身已成功）。现在 `install.sh` 从
-   `systemctl show -p ExecStart` 解析服务自己的 node（`/root/.nvm/versions/node/v24.21.0/bin/node`）再跑所有 node 调用；
+   `systemctl show -p ExecStart` 解析服务自己的 node（`node`）再跑所有 node 调用；
    `postinstall-gui.mjs` 也支持 `WEBPILOT_TOKEN=…` 复跑（journal 只保留近期 token，重启久了会找不到）。
 11. **别用 `pkill -f "port 3090"` 重启 dev 实例**：`pkill -f` 匹配整条命令行，agent 自己的 `bash -c` 里就含这个
     字符串，会把发起命令的 shell 一起 SIGTERM 掉（表现为工具直接 `[killed by signal: SIGTERM]`）。用 `pgrep -af` 先看，
@@ -88,7 +88,7 @@
 
 ```sh
 sudo systemd-run --unit=dsh-webpilot-install --collect --property=Type=oneshot \
-  /bin/bash /root/workspace/plugins/dsh-webpilot/scripts/install.sh
+  /bin/bash /opt/dsh/dsh-webpilot/scripts/install.sh
 ```
 
 `install.sh` 自己解析服务用的 node（`systemctl show -p ExecStart`）、重启服务、等 health 200，
@@ -124,7 +124,7 @@ systemd 的 PATH 里是 `/usr/bin/node`（v20，没有全局 `WebSocket`），�
 **验证**（`e2e/address-bar.mjs`，新增，已登记进 `run-all.mjs`，可用 `--no-address` 跳过）：
 
 ```bash
-cd /root/workspace/plugins/dsh-webpilot
+cd /opt/dsh/dsh-webpilot
 TZ=Asia/Shanghai node e2e/address-bar.mjs
 ```
 
@@ -258,4 +258,4 @@ TZ=Asia/Shanghai node e2e/address-bar.mjs
 
 注意两点：① 面板里「扫码」需要人真的能看见画面——服务重启后旧页面上的客户端 WS 已断，
 必须**刷新 Web UI 并打开右栏 WebPilot 标签**，否则 `ask_human` 到点超时（本次第一次交接就因此超时 420s）；
-② 登录态落在 `/root/.dsh/webpilot/profile`，重启与会话关闭都不会丢，下次直接用。
+② 登录态落在 `~/.dsh/webpilot/profile`，重启与会话关闭都不会丢，下次直接用。

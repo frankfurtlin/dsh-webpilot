@@ -7,8 +7,8 @@
 set -uo pipefail
 
 PLUGIN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-PROFILE_DIR="${DSH_PROFILE_DIR:-/root/.dsh/profiles/web}"
-DSH_HOME_DIR="${DSH_HOME:-/root/.dsh}"
+PROFILE_DIR="${DSH_PROFILE_DIR:-$HOME/.dsh/profiles/web}"
+DSH_HOME_DIR="${DSH_HOME:-$HOME/.dsh}"
 SERVICE="${DSH_SERVICE:-deepseek-harness}"
 WEB_PORT="${DSH_WEB_PORT:-3080}"
 BASE="http://127.0.0.1:${WEB_PORT}"

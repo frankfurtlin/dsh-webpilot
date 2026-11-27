@@ -12,7 +12,7 @@ cyber-spider 风格的操作特效。代码基线是 `imroc/dsh-embedded-browser
 | `lib/index.js`, `lib/browser.js`, `lib/tools.js`, `lib/define-tool.js`, `lib/lazy.js` | **host** | 宿主半：生命周期、CDP 动作、工具、特效事件发射 |
 | `lib/client.js` | **ui** | 客户端半：右侧栏面板 body（画面、特效、HUD、接管横幅） |
 | `lib/cdp.js`, `lib/screencast.js`, `lib/routes.js`, `lib/ws.js`, `lib/human.js` | Lead/共用 | 尽量不动；确需小改先告诉 Lead |
-| `e2e/**`, `/root/workspace/.dsh-dev/**` | **e2e** | 开发实例与自动化验收 |
+| `e2e/**`, `~/workspace/.dsh-dev/**` | **e2e** | 开发实例与自动化验收 |
 | `docs/`, `README.md`, `package.json`, `cordis.patch.yml`, `install.sh` | Lead | 契约、打包、安装 |
 
 ## 1. 坐标系统
@@ -116,12 +116,12 @@ cyber-spider 风格的操作特效。代码基线是 `imroc/dsh-embedded-browser
 
 - host：`node e2e/backend-smoke.mjs` 能真起 Chrome、navigate example.com、snapshot 返回带 `box` 的元素、click 触发 fx、进度日志清楚；不依赖 DSH。
 - ui：`e2e/harness.html` 能独立加载特效层（喂合成 fx 事件 + 一张截图），键盘/鼠标回灌仍走基线协议。
-- e2e：在 `/root/workspace/.dsh-dev`（DSH_HOME）起 `--port 3090` 实例，Playwright 打开 GUI → 触发面板 → 截图断言（画面非空白、fx 层存在、HUD 有行、无 console error）。
+- e2e：在 `~/workspace/.dsh-dev`（DSH_HOME）起 `--port 3090` 实例，Playwright 打开 GUI → 触发面板 → 截图断言（画面非空白、fx 层存在、HUD 有行、无 console error）。
 - 语言：界面文案中文为主 + 少量英文技术词（LIVE / READ / TAKEOVER），HUD 用英文大写短词。
 
 ## 6. 禁止
 
-- 不改 `/root/.dsh`、不 restart 线上 DSH（Lead 最后统一处理）。
+- 不改 `~/.dsh`、不 restart 线上 DSH（Lead 最后统一处理）。
 - 不 import `@deepseek-ai/dsh-tools`、`@deepseek-ai/schemastery`（link 插件解析不到）；工具定义用 `lib/define-tool.js` 本地 shim。
 - 不在自身代码里开 `Runtime.evaluate` 的对外通道（安全模型同基线）。
 - 特效不注入目标页面；不引入新的 npm 依赖（ws 用基线自带实现）。

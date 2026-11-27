@@ -22,7 +22,7 @@ import { BrowserManager, normalizeAddress, sleep } from '../lib/browser.js'
 import { HumanBroker } from '../lib/human.js'
 import { defineTools } from '../lib/tools.js'
 
-const CHROME = process.env.WEBPILOT_CHROME ?? '/root/.cache/ms-playwright/chromium-1243/chrome-linux64/chrome'
+const CHROME = process.env.WEBPILOT_CHROME ?? (await import('./lib/chrome.mjs')).defaultChrome()
 const SESSION = 'backend-smoke'
 const LEAD_MS = 120
 const DEBUG = process.env.WEBPILOT_SMOKE_DEBUG === '1'
