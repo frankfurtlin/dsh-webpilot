@@ -1,0 +1,48 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+# CI 只需要读仓库
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: 语法校验（node --check）
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      # 本仓 package.json 没有 scripts，也没有 npm 依赖，所以这里直接列 node --check 清单。
+      - name: node --check（lib + 安装脚本）
+        run: |
+          set -euo pipefail
+          for f in lib/*.js scripts/postinstall-gui.mjs; do
+            node --check "$f"
+            echo "ok  $f"
+          done
+
+      # 只做语法校验，不启动浏览器：e2e 需要真实 Chrome + DSH 运行时，不进 CI。
+      - name: node --check（e2e 脚本，仅解析）
+        run: |
+          set -euo pipefail
+          for f in e2e/*.mjs e2e/lib/*.mjs; do
+            node --check "$f"
+            echo "ok  $f"
+          done
+
+      # 说明：本仓没有单测（无 test/ 目录，package.json 也没有 test 脚本），因此不跑 npm test。
